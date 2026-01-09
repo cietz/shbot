@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="grid">
+    <div class="glass-card stat-card">
+        <h3>Total Usuários</h3>
+        <div class="value">{{ stats.total_users }}</div>
+    </div>
+    <div class="glass-card stat-card">
+        <h3>Total XP</h3>
+        <div class="value">{{ "{:,}".format(stats.total_xp) }}</div>
+    </div>
+    <div class="glass-card stat-card">
+        <h3>Coins em Circulação</h3>
+        <div class="value">{{ "{:,}".format(stats.total_coins) }}</div>
+    </div>
+    <div class="glass-card stat-card">
+        <h3>Missões Ativas</h3>
+        <div class="value">{{ stats.active_missions }}</div>
+    </div>
+</div>
+
+<div class="glass-card">
+    <div class="card-header">
+        <h2>Top Usuários (XP)</h2>
+        <a href="/users" class="btn btn-sm btn-secondary">Ver Todos</a>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Usuário</th>
+                    <th>Nível</th>
+                    <th>XP</th>
+                    <th>VIP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in top_users %}
+                <tr>
+                    <td>#{{ loop.index }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.level }}</td>
+                    <td>{{ "{:,}".format(user.xp) }}</td>
+                    <td>
+                        {% if user.is_vip %}
+                        <span class="status-badge status-active">VIP</span>
+                        {% else %}
+                        <span class="status-badge status-inactive">Free</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

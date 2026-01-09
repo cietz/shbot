@@ -1,0 +1,159 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<!-- Stats Cards -->
+<div class="grid">
+    <div class="glass-card stat-card">
+        <h3>Eventos Ativos</h3>
+        <div class="value" style="color: #10b981;">{{ stats.active }}</div>
+    </div>
+    <div class="glass-card stat-card">
+        <h3>Total de Eventos</h3>
+        <div class="value">{{ stats.total }}</div>
+    </div>
+</div>
+
+<!-- Create Event Form -->
+<div class="glass-card">
+    <div class="card-header">
+        <h2>
+            <i data-lucide="plus-circle" style="width: 20px; display: inline-block; vertical-align: text-bottom;"></i> Criar Novo Evento
+        </h2>
+    </div>
+    <form method="POST" action="/events/create">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div class="form-group">
+                <label class="form-label">Nome do Evento *</label>
+                <input type="text" name="name" class="form-control" required placeholder="Ex: Live de Análise">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tipo</label>
+                <select name="event_type" class="form-control">
+                    <option value="live">🎬 Live</option>
+                    <option value="event">🎪 Evento</option>
+                    <option value="workshop">📚 Workshop</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">XP Recompensa</label>
+                <input type="number" name="xp_reward" class="form-control" value="100" min="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Coins Recompensa</label>
+                <input type="number" name="coins_reward" class="form-control" value="10" min="0">
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-top: 16px;">
+            <div class="form-group">
+                <label class="form-label">📅 Data do Evento *</label>
+                <input type="date" name="event_date" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">🕐 Horário Início (BR) *</label>
+                <input type="time" name="start_time" class="form-control" required value="20:00">
+            </div>
+            <div class="form-group">
+                <label class="form-label">🕐 Horário Fim (BR) *</label>
+                <input type="time" name="end_time" class="form-control" required value="22:00">
+            </div>
+        </div>
+        
+        <div class="form-group" style="margin-top: 16px;">
+            <label class="form-label">Descrição (opcional)</label>
+            <textarea name="description" class="form-control" rows="2" placeholder="Descrição do evento..."></textarea>
+        </div>
+        
+        <div style="margin-top: 16px;">
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                <i data-lucide="calendar-plus"></i> Criar Evento
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Events List -->
+<div class="glass-card">
+    <div class="card-header">
+        <h2>📋 Lista de Eventos</h2>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Tipo</th>
+                    <th>Horário (BR)</th>
+                    <th>Recompensas</th>
+                    <th>Presenças</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td><strong>#{{ event.id }}</strong></td>
+                    <td>{{ event.event_name }}</td>
+                    <td>
+                        {% if event.event_type == 'live' %}
+                            🎬 Live
+                        {% elif event.event_type == 'workshop' %}
+                            📚 Workshop
+                        {% else %}
+                            🎪 Evento
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if event.start_time_br and event.end_time_br %}
+                            <small class="text-secondary">
+                                {{ event.start_time_br }}<br>
+                                até {{ event.end_time_br[11:16] if event.end_time_br|length > 11 else event.end_time_br }}
+                            </small>
+                        {% else %}
+                            <span style="color: var(--text-muted);">Sem horário</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">+{{ event.xp_reward }} XP</span>
+                        <span class="status-badge badge-yellow">+{{ event.coins_reward }} 🪙</span>
+                    </td>
+                    <td>
+                        <strong>{{ event.presence_count }}</strong> 👥
+                    </td>
+                    <td>
+                        {% if event.is_active %}
+                            <span class="status-badge status-active">Ativo</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">Encerrado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if event.is_active %}
+                            <form method="POST" action="/events/end" style="display: inline;">
+                                <input type="hidden" name="event_id" value="{{ event.id }}">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Encerrar este evento?')">
+                                    Encerrar
+                                </button>
+                            </form>
+                        {% else %}
+                            <span style="color: var(--text-muted);">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        Nenhum evento encontrado. Crie um novo acima!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

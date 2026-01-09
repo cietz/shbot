@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SharkClub Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="brand">
+            <i data-lucide="shark"></i>
+            <span>SharkClub</span>
+        </div>
+        
+        <ul class="nav-links">
+            <li class="nav-item">
+                <a href="/" class="nav-link {{ 'active' if active_page == 'home' else '' }}">
+                    <i data-lucide="layout-dashboard"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/users" class="nav-link {{ 'active' if active_page == 'users' else '' }}">
+                    <i data-lucide="users"></i> Usuários
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/missions" class="nav-link {{ 'active' if active_page == 'missions' else '' }}">
+                    <i data-lucide="target"></i> Missões
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/events" class="nav-link {{ 'active' if active_page == 'events' else '' }}">
+                    <i data-lucide="calendar"></i> Eventos
+                </a>
+            </li>
+
+        </ul>
+        
+        <div class="sidebar-footer">
+            <a href="/logout" class="nav-link">
+                <i data-lucide="log-out"></i> Sair
+            </a>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="header">
+            <h1 class="page-title">{{ title }}</h1>
+            <div class="user-profile">
+                <span>Admin</span>
+                <div class="avatar">A</div>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="glass-card" style="padding: 12px; background: rgba(0, 255, 136, 0.1); border-color: #00ff88; margin-bottom: 20px;">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

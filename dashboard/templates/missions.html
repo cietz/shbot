@@ -1,0 +1,136 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="glass-card">
+    <div class="card-header" style="flex-wrap: wrap; gap: 1rem;">
+        <h2>Gerenciar Missões</h2>
+        <form action="/missions" method="get" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <select name="user" class="form-control" style="width: 200px;" onchange="this.form.submit()">
+                <option value="">Todos os Usuários</option>
+                {% for user in users_with_missions %}
+                <option value="{{ user.user_id }}" {{ 'selected' if filter_user == user.user_id|string else '' }}>
+                    {{ user.username }}
+                </option>
+                {% endfor %}
+            </select>
+            <select name="status" class="form-control" style="width: auto;" onchange="this.form.submit()">
+                <option value="">Todas</option>
+                <option value="active" {{ 'selected' if filter_status == 'active' else '' }}>Ativas</option>
+                <option value="completed" {{ 'selected' if filter_status == 'completed' else '' }}>Completas</option>
+            </select>
+            <select name="type" class="form-control" style="width: auto;" onchange="this.form.submit()">
+                <option value="">Todos os Tipos</option>
+                <option value="daily" {{ 'selected' if filter_type == 'daily' else '' }}>Diárias</option>
+                <option value="weekly" {{ 'selected' if filter_type == 'weekly' else '' }}>Semanais</option>
+            </select>
+            <button type="submit" class="btn btn-secondary">Filtrar</button>
+            {% if filter_user or filter_status or filter_type %}
+            <a href="/missions" class="btn btn-secondary" style="text-decoration: none;">Limpar</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Usuário</th>
+                    <th>Missão</th>
+                    <th>Tipo</th>
+                    <th>Progresso</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mission in missions %}
+                <tr>
+                    <td>{{ mission.id }}</td>
+                    <td>
+                        <a href="/missions?user={{ mission.user_id }}" style="color: var(--primary-color); text-decoration: none; font-weight: 500;" title="ID: {{ mission.user_id }}">
+                            {{ mission.username }}
+                        </a>
+                    </td>
+                    <td>
+                        <strong>{{ mission.mission_id }}</strong>
+                    </td>
+                    <td>
+                        {% if mission.mission_type == 'daily' %}
+                        <span class="status-badge badge-blue">📅 Diária</span>
+                        {% elif mission.mission_type == 'weekly' %}
+                        <span class="status-badge badge-purple">📆 Semanal</span>
+                        {% else %}
+                        <span class="status-badge badge-yellow">⭐ Secreta</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="flex: 1; background: rgba(255,255,255,0.1); border-radius: 10px; height: 8px; overflow: hidden; min-width: 60px;">
+                                {% set progress_pct = (mission.progress / mission.target * 100) if mission.target > 0 else 0 %}
+                                <div style="width: {{ progress_pct }}%; height: 100%; background: var(--primary-gradient); border-radius: 10px;"></div>
+                            </div>
+                            <span style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">{{ mission.progress }}/{{ mission.target }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if mission.status == 'active' %}
+                        <span class="status-badge status-active">Ativa</span>
+                        {% elif mission.status == 'completed' %}
+                        <span class="status-badge status-active">✅ Completa</span>
+                        {% else %}
+                        <span class="status-badge status-inactive">{{ mission.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if mission.status == 'active' %}
+                        <div style="display: flex; gap: 5px;">
+                            <form action="/missions/advance" method="post" style="display: inline;">
+                                <input type="hidden" name="mission_id" value="{{ mission.id }}">
+                                <button type="submit" class="btn btn-sm btn-secondary" title="Avançar +1">
+                                    <i data-lucide="plus" style="width: 14px;"></i>
+                                </button>
+                            </form>
+                            <form action="/missions/complete" method="post" style="display: inline;">
+                                <input type="hidden" name="mission_id" value="{{ mission.id }}">
+                                <input type="hidden" name="user_id" value="{{ mission.user_id }}">
+                                <input type="hidden" name="mission_type" value="{{ mission.mission_type }}">
+                                <input type="hidden" name="mission_name" value="{{ mission.mission_id }}">
+                                <button type="submit" class="btn btn-sm btn-primary" title="Completar Missão">
+                                    <i data-lucide="check" style="width: 14px;"></i> Aprovar
+                                </button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 12px;">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    {% if missions|length == 0 %}
+    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+        <p>Nenhuma missão encontrada com os filtros selecionados.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Stats Cards -->
+<div class="grid">
+    <div class="glass-card stat-card" style="text-align: center;">
+        <div class="value text-gradient">{{ stats.active }}</div>
+        <h3>Missões Ativas</h3>
+    </div>
+    <div class="glass-card stat-card" style="text-align: center;">
+        <div class="value" style="color: #10b981; -webkit-text-fill-color: initial; background: none;">{{ stats.completed }}</div>
+        <h3>Completadas</h3>
+    </div>
+    <div class="glass-card stat-card" style="text-align: center;">
+        <div class="value" style="color: #fbbf24; -webkit-text-fill-color: initial; background: none;">{{ stats.weekly }}</div>
+        <h3>Semanais Ativas</h3>
+    </div>
+</div>
+{% endblock %}

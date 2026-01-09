@@ -1,0 +1,121 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="glass-card">
+    <div class="card-header">
+        <h2>Gerenciar Usuários</h2>
+        <form action="/users" method="get" style="display: flex; gap: 10px;">
+            <input type="text" name="q" placeholder="Buscar ID ou Nome..." class="form-control" value="{{ search_query }}">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+        </form>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Nível</th>
+                    <th>XP</th>
+                    <th>Coins</th>
+                    <th>VIP</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.user_id }}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="avatar" style="width: 32px; height: 32px; font-size: 14px;">{{ user.username[0]|upper }}</div>
+                            {{ user.username }}
+                        </div>
+                    </td>
+                    <td>{{ user.level }}</td>
+                    <td>{{ "{:,}".format(user.xp) }}</td>
+                    <td>{{ "{:,}".format(user.coins) }}</td>
+                    <td>
+                        {% if user.is_vip %}
+                        <span class="status-badge status-active">VIP</span>
+                        {% else %}
+                        <span class="status-badge status-inactive">Free</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="openEditModal('{{ user.user_id }}', '{{ user.username }}', {{ user.xp }}, {{ user.coins }}, {{ 'true' if user.is_vip else 'false' }})">
+                            <i data-lucide="edit-2" style="width: 14px;"></i> Editar
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title">Editar Usuário</h3>
+        </div>
+        <form action="/users/update" method="post">
+            <input type="hidden" name="user_id" id="edit_user_id">
+            
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" id="edit_username" disabled class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">XP</label>
+                <input type="number" name="xp" id="edit_xp" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Coins</label>
+                <input type="number" name="coins" id="edit_coins" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">VIP Status</label>
+                <select name="is_vip" id="edit_is_vip" class="form-control">
+                    <option value="false">Free</option>
+                    <option value="true">VIP</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditModal(id, username, xp, coins, isVip) {
+    const modal = document.getElementById('editModal');
+    modal.classList.add('active');
+    
+    document.getElementById('edit_user_id').value = id;
+    document.getElementById('edit_username').value = username;
+    document.getElementById('edit_xp').value = xp;
+    document.getElementById('edit_coins').value = coins;
+    document.getElementById('edit_is_vip').value = isVip;
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.remove('active');
+}
+
+// Close modal when clicking outside
+document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeEditModal();
+    }
+});
+</script>
+{% endblock %}
