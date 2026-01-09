@@ -188,6 +188,13 @@ class UserQueries:
         return result.data if result.data else []
     
     @staticmethod
+    def get_all_user_ids() -> set:
+        """Retorna set de todos os user_ids cadastrados no banco (otimizado para lookup)"""
+        client = get_supabase()
+        result = client.table('users').select('user_id').execute()
+        return set(u['user_id'] for u in (result.data or []))
+    
+    @staticmethod
     def get_top_users(limit: int = 10, order_by: str = 'xp') -> List[Dict[str, Any]]:
         """Busca top usuários por XP ou outro campo"""
         client = get_supabase()

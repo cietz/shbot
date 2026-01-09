@@ -50,16 +50,19 @@ class MissionsCog(commands.Cog):
         # 1. Busca todos os user_ids que JÁ têm missões semanais (1 query)
         users_with_missions = MissionQueries.get_users_with_active_weekly_missions()
         
-        # 2. Filtra membros que precisam de missões
+        # 2. Busca todos os usuários que já existem no banco de dados
+        existing_users = UserQueries.get_all_user_ids()
+        
+        # 3. Filtra membros que precisam de missões E que já existem no banco
         members_needing_missions = [
             m for m in guild.members 
-            if not m.bot and m.id not in users_with_missions
+            if not m.bot and m.id not in users_with_missions and m.id in existing_users
         ]
         
         if not members_needing_missions:
             return
         
-        # 3. Calcula data de expiração (próximo domingo 23:59)
+        # 4. Calcula data de expiração (próximo domingo 23:59)
         now = datetime.now(timezone.utc)
         days_until_sunday = (6 - now.weekday()) % 7
         if days_until_sunday == 0:
@@ -67,7 +70,7 @@ class MissionsCog(commands.Cog):
         expires_at = (now + timedelta(days=days_until_sunday)).replace(hour=23, minute=59, second=59)
         expires_at_iso = expires_at.isoformat()
         
-        # 4. Prepara batch de missões para todos os membros (sem chamada individual ao banco)
+        # 5. Prepara batch de missões para todos os membros (sem chamada individual ao banco)
         all_missions = []
         for member in members_needing_missions:
             # Adiciona as 5 missões semanais para este membro
@@ -83,11 +86,13 @@ class MissionsCog(commands.Cog):
                     'expires_at': expires_at_iso,
                 })
         
-        # 5. Insere todas as missões de uma vez (1 query)
-        created = MissionQueries.create_missions_batch(all_missions)
-        
-        if created > 0:
-            print(f"📋 {created} missões semanais criadas para {len(members_needing_missions)} membros em {guild.name}")
+        # 6. Insere todas as missões de uma vez (1 query)
+        if all_missions:
+            created = MissionQueries.create_missions_batch(all_missions)
+            
+            if created > 0:
+                print(f"📋 {created} missões semanais criadas para {len(members_needing_missions)} membros em {guild.name}")
+
     
     @tasks.loop(hours=1)
     async def check_weekly_reset(self):

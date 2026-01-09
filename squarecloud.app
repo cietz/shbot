@@ -5,4 +5,4 @@ main=bot.py
 memory=512
 
 [web]
-port=5000
+port=80
