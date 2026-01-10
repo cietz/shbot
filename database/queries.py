@@ -1070,6 +1070,14 @@ class EventQueries:
         return result.data if result.data else []
     
     @staticmethod
+    def get_unannounced_events() -> List[Dict[str, Any]]:
+        """Busca eventos ativos não anunciados"""
+        client = get_supabase()
+        # Busca eventos ativos onde message_id é null
+        result = client.table('events').select('*').eq('is_active', True).is_('message_id', 'null').execute()
+        return result.data if result.data else []
+    
+    @staticmethod
     def get_event(event_id: int) -> Optional[Dict[str, Any]]:
         """Retorna um evento pelo ID"""
         client = get_supabase()

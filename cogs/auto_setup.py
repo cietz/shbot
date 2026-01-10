@@ -409,14 +409,12 @@ class AutoSetupCog(commands.Cog):
     async def send_level_up_notification(self, guild: discord.Guild, member: discord.Member, 
                                           old_level: int, new_level: int):
         """Envia notificação de level up no canal apropriado"""
-        channel = self._channels.get("🔔-level-ups")
+        channel_id = config.CHANNEL_IDS.get("level_ups")
+        channel = guild.get_channel(channel_id)
         
         if not channel:
-            # Tenta buscar
-            for ch in guild.text_channels:
-                if "level-up" in ch.name.lower():
-                    channel = ch
-                    break
+             print(f"⚠️ Canal de level-ups não encontrado (ID: {channel_id})")
+             return
         
         if channel:
             cargo_name = config.CARGO_NAMES.get(new_level, f"Nível {new_level}")
@@ -488,14 +486,11 @@ class AutoSetupCog(commands.Cog):
     
     async def get_evaluations_channel(self, guild: discord.Guild) -> Optional[discord.TextChannel]:
         """Retorna o canal de avaliações"""
-        channel = self._channels.get("⭐-avaliacoes")
+        channel_id = config.CHANNEL_IDS.get("avaliacoes")
+        channel = guild.get_channel(channel_id)
         
         if not channel:
-            # Tenta buscar
-            for ch in guild.text_channels:
-                if "avaliacoes" in ch.name.lower() or "avaliações" in ch.name.lower():
-                    channel = ch
-                    break
+            print(f"⚠️ Canal de avaliações não encontrado (ID: {channel_id})")
         
         return channel
     

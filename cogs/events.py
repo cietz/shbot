@@ -26,6 +26,7 @@ class EventsCog(commands.Cog):
     def cog_unload(self):
         """Cancela tasks ao descarregar cog"""
         self.auto_close_events.cancel()
+        self.announce_new_events.cancel()
     
     @commands.Cog.listener()
     async def on_ready(self):
@@ -33,6 +34,10 @@ class EventsCog(commands.Cog):
         if not self.auto_close_events.is_running():
             self.auto_close_events.start()
             print("✅ Task de auto-fechamento de eventos iniciada")
+            
+        if not self.announce_new_events.is_running():
+            self.announce_new_events.start()
+            print("✅ Task de anúncios automáticos iniciada")
     
     @tasks.loop(minutes=1)
     async def auto_close_events(self):
@@ -56,6 +61,42 @@ class EventsCog(commands.Cog):
                     print(f"🔒 Evento #{event['id']} '{event['event_name']}' encerrado automaticamente")
         except Exception as e:
             print(f"⚠️ Erro ao verificar auto-fechamento de eventos: {e}")
+
+    @tasks.loop(minutes=1)
+    async def announce_new_events(self):
+        """Verifica novos eventos criados na dashboard e os anuncia"""
+        try:
+            # Busca canal fixo de eventos
+            channel_id = config.CHANNEL_IDS.get("eventos")
+            channel = self.bot.get_channel(channel_id)
+            
+            if not channel:
+                # Silencioso para não spammar logs se não configurado
+                return
+            
+            # Busca eventos não anunciados
+            new_events = EventQueries.get_unannounced_events()
+            
+            if not new_events:
+                return
+                
+            for event in new_events:
+                try:
+                    # Cria embed
+                    embed = self.create_event_announcement_embed(event, [])
+                    
+                    # Envia para o canal
+                    message = await channel.send(embed=embed)
+                    
+                    # Atualiza BD com message_id
+                    EventQueries.update_event_message(event['id'], message.id, channel.id)
+                    print(f"📢 Novo evento anunciado: {event['event_name']}")
+                    
+                except Exception as ex:
+                    print(f"❌ Erro ao anunciar evento {event['id']}: {ex}")
+                    
+        except Exception as e:
+            print(f"⚠️ Erro na task de anúncios: {e}")
     
     def is_admin():
         """Decorator para verificar permissão de admin"""

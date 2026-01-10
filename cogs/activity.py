@@ -189,6 +189,87 @@ class EvaluationStarsView(discord.ui.View):
 
 
 # ═══════════════════════════════════════════════════════════════
+# VIEW COM SELETOR DE USUÁRIO (PARA PAINEL FIXO)
+# ═══════════════════════════════════════════════════════════════
+
+class UserSelectView(discord.ui.View):
+    """View ephemeral com dropdown para selecionar usuário"""
+    
+    def __init__(self):
+        super().__init__(timeout=60)
+    
+    @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Selecione o membro para avaliar...", min_values=1, max_values=1)
+    async def select_user(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        target = select.values[0]
+        
+        # Não pode avaliar a si mesmo
+        if target.id == interaction.user.id:
+            await interaction.response.send_message("❌ Você não pode avaliar a si mesmo!", ephemeral=True)
+            return
+        
+        # Não pode avaliar bots
+        if target.bot:
+            await interaction.response.send_message("❌ Você não pode avaliar bots!", ephemeral=True)
+            return
+
+        # Verifica cooldown
+        can_eval = EvaluationQueries.can_evaluate(
+            interaction.user.id, 
+            target.id, 
+            config.EVALUATION_COOLDOWN_HOURS
+        )
+        
+        if not can_eval:
+            await interaction.response.send_message(
+                f"⏱️ Você já avaliou **{target.display_name}** recentemente. Tente novamente mais tarde.", 
+                ephemeral=True
+            )
+            return
+
+        # Busca média atual
+        stats = EvaluationQueries.get_average_stars(target.id)
+        
+        embed = discord.Embed(
+            title=f"⭐ Avaliar {target.display_name}",
+            description="Escolha quantas estrelas dar para este membro:",
+            color=config.EMBED_COLOR_PRIMARY
+        )
+        
+        if stats['count'] > 0:
+            embed.add_field(name="Média Atual", value=f"⭐ {stats['average']} ({stats['count']} avaliações)")
+            
+        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        # Abre view de estrelas (ephemeral também)
+        view = EvaluationStarsView(target, interaction.user)
+        # Editamos a mensagem original do seletor para virar a seleção de estrelas
+        await interaction.response.edit_message(content=None, embed=embed, view=view)
+
+
+class EvaluationPanelView(discord.ui.View):
+    """View persistente do painel de avaliações"""
+    
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+    
+    @discord.ui.button(
+        label="Avaliar Alguém",
+        style=discord.ButtonStyle.primary,
+        emoji="⭐",
+        custom_id="eval_panel_start"
+    )
+    async def start_evaluation(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Inicia fluxo de avaliação"""
+        view = UserSelectView()
+        await interaction.response.send_message(
+            "Selecione quem você quer avaliar:",
+            view=view,
+            ephemeral=True
+        )
+
+
+# ═══════════════════════════════════════════════════════════════
 # COG PRINCIPAL
 # ═══════════════════════════════════════════════════════════════
 
@@ -636,6 +717,39 @@ class ActivityCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
+    @app_commands.command(name="admin-setup-avaliacoes", description="[ADMIN] Enviar painel de avaliações fixo")
+    @is_admin_check()
+    async def admin_setup_avaliacoes(self, interaction: discord.Interaction):
+        """Envia painel fixo de avaliações para o canal configurado"""
+        await interaction.response.defer(ephemeral=True)
+        
+        channel_id = config.CHANNEL_IDS.get("avaliacoes")
+        channel = self.bot.get_channel(channel_id)
+        
+        if not channel:
+            await interaction.followup.send(f"❌ Canal de avaliações não encontrado (ID: {channel_id})", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="⭐ Sistema de Avaliações",
+            description="Reconheça membros que ajudaram você ou contribuíram para a comunidade!\n\n"
+                       "**Como funciona:**\n"
+                       "1. Clique no botão abaixo\n"
+                       "2. Selecione o membro\n"
+                       "3. Escolha a nota (1-5 estrelas)\n"
+                       "4. Escreva um comentário\n\n"
+                       "🏆 **Recompensas:** Tanto quem avalia quanto quem recebe ganha XP!",
+            color=config.EMBED_COLOR_GOLD
+        )
+        embed.set_footer(text="SharkClub - Cultura de Reconhecimento")
+        
+        view = EvaluationPanelView(self.bot)
+        
+        # Envia nova mensagem (force new)
+        await channel.send(embed=embed, view=view)
+        
+        await interaction.followup.send(f"✅ Painel de avaliações enviado para {channel.mention}!", ephemeral=True)
+
     @app_commands.command(name="admin-ver-atividade", description="[ADMIN] Ver atividade de um membro específico")
     @is_admin_check()
     async def admin_ver_atividade(self, interaction: discord.Interaction, membro: discord.Member, dias: int = 7):

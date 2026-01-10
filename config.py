@@ -105,6 +105,9 @@ CHANNEL_IDS = {
     "ajudou": 1457735753080504565,
     "calls_marcadas": 1458442547939508235,
     "loja": 1459267133904126188,
+    "eventos": 1457725917588885554,
+    "level_ups": 1454549598164226280,
+    "avaliacoes": 1457725920403128484,
 }
 
 # Cores dos cargos (em hexadecimal)
