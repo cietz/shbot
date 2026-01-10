@@ -126,6 +126,19 @@ class MinigamesCog(commands.Cog):
         except Exception as e:
             print(f"❌ Erro ao enviar painel de minigames: {e}")
     
+    @app_commands.command(name="admin-setup-minigames", description="[ADMIN] Reenviar o painel de minigames")
+    async def admin_setup_minigames(self, interaction: discord.Interaction):
+        """[ADMIN] Reenvia o painel de minigames no canal configurado"""
+        # Verifica admin no DB
+        user_data = UserQueries.get_or_create_user(interaction.user.id, interaction.user.display_name)
+        if not user_data.get('is_admin', False):
+             await interaction.response.send_message("❌ Apenas administradores do bot podem usar este comando.", ephemeral=True)
+             return
+
+        await interaction.response.defer(ephemeral=True)
+        await self._send_minigames_panel(interaction.guild)
+        await interaction.followup.send("✅ Painel de minigames reenviado!", ephemeral=True)
+
     # Métodos internos para execução via botão
     async def _execute_roleta(self, interaction: discord.Interaction):
         """Executa roleta (usado por comando e botão)"""

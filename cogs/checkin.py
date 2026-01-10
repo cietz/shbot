@@ -97,6 +97,19 @@ class CheckinCog(commands.Cog):
         except Exception as e:
             print(f"❌ Erro ao enviar painel de check-in: {e}")
     
+    @app_commands.command(name="admin-setup-checkin", description="[ADMIN] Reenviar o painel de check-in")
+    async def admin_setup_checkin(self, interaction: discord.Interaction):
+        """[ADMIN] Reenvia o painel de check-in no canal configurado"""
+        # Verifica admin no DB
+        user_data = UserQueries.get_or_create_user(interaction.user.id, interaction.user.display_name)
+        if not user_data.get('is_admin', False):
+             await interaction.response.send_message("❌ Apenas administradores do bot podem usar este comando.", ephemeral=True)
+             return
+
+        await interaction.response.defer(ephemeral=True)
+        await self._send_checkin_panel(interaction.guild)
+        await interaction.followup.send("✅ Painel de check-in reenviado!", ephemeral=True)
+
     # Método interno para execução via botão
     async def _execute_checkin(self, interaction: discord.Interaction):
         """Executa check-in (usado por comando e botão)"""

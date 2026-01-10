@@ -265,20 +265,9 @@ class AutoSetupCog(commands.Cog):
             if category.name == name:
                 return category
         
-        # Cria a categoria
-        try:
-            category = await guild.create_category(
-                name=name,
-                reason="SharkClub Auto-Setup"
-            )
-            print(f"    ✅ Categoria criada: {name}")
-            return category
-        except discord.Forbidden:
-            print(f"    ❌ Sem permissão para criar categoria: {name}")
-            return None
-        except Exception as e:
-            print(f"    ❌ Erro ao criar categoria {name}: {e}")
-            return None
+        # Não cria mais categorias automaticamente
+        print(f"    ⚠ Categoria '{name}' não encontrada (Criação automática desativada)")
+        return None
     
     async def get_or_create_text_channel(self, guild: discord.Guild, name: str,
                                           category: discord.CategoryChannel = None,
@@ -292,22 +281,9 @@ class AutoSetupCog(commands.Cog):
             if channel.name.lower() == search_name:
                 return channel
         
-        # Cria o canal
-        try:
-            channel = await guild.create_text_channel(
-                name=name,
-                category=category,
-                topic=topic,
-                reason="SharkClub Auto-Setup"
-            )
-            print(f"    ✅ Canal criado: {name}")
-            return channel
-        except discord.Forbidden:
-            print(f"    ❌ Sem permissão para criar canal: {name}")
-            return None
-        except Exception as e:
-            print(f"    ❌ Erro ao criar canal {name}: {e}")
-            return None
+        # Não cria mais canais automaticamente
+        print(f"    ⚠ Canal '{name}' não encontrado (Criação automática desativada)")
+        return None
     
     async def setup_permissions(self, guild: discord.Guild):
         """Configura permissões básicas"""

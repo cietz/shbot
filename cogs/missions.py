@@ -126,6 +126,19 @@ class MissionsCog(commands.Cog):
         except Exception as e:
             print(f"❌ Erro ao enviar painel de missões: {e}")
     
+    @app_commands.command(name="admin-setup-missoes", description="[ADMIN] Reenviar o painel de missões")
+    async def admin_setup_missoes(self, interaction: discord.Interaction):
+        """[ADMIN] Reenvia o painel de missões no canal configurado"""
+        # Verifica admin no DB
+        user_data = UserQueries.get_or_create_user(interaction.user.id, interaction.user.display_name)
+        if not user_data.get('is_admin', False):
+             await interaction.response.send_message("❌ Apenas administradores do bot podem usar este comando.", ephemeral=True)
+             return
+
+        await interaction.response.defer(ephemeral=True)
+        await self._send_missions_panel(interaction.guild)
+        await interaction.followup.send("✅ Painel de missões reenviado!", ephemeral=True)
+
     def cog_unload(self):
         self.check_weekly_reset.cancel()
     
