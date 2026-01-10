@@ -39,7 +39,7 @@ class EventsCog(commands.Cog):
             self.announce_new_events.start()
             print("✅ Task de anúncios automáticos iniciada")
     
-    @tasks.loop(minutes=1)
+    @tasks.loop(seconds=15)
     async def auto_close_events(self):
         """Verifica eventos que passaram do horário e os encerra automaticamente. Também atualiza status."""
         try:
@@ -79,7 +79,7 @@ class EventsCog(commands.Cog):
         except Exception as e:
             print(f"⚠️ Erro ao verificar auto-fechamento de eventos: {e}")
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(seconds=15)
     async def announce_new_events(self):
         """Verifica novos eventos criados na dashboard e os anuncia"""
         try:
