@@ -11,8 +11,11 @@ from datetime import datetime, timezone, time
 import config
 from database.queries import UserQueries
 
-# Horário que o leaderboard será postado (10:00 da manhã BRT = 13:00 UTC)
-LEADERBOARD_TIME = time(hour=13, minute=0, second=0)
+# Horários que o leaderboard será postado (10:00 e 18:00 BRT = 13:00 e 21:00 UTC)
+LEADERBOARD_TIME = [
+    time(hour=13, minute=0, second=0),
+    time(hour=21, minute=0, second=0)
+]
 
 class RankingCog(commands.Cog):
     """Sistema de Ranking Diário"""
