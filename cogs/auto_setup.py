@@ -486,7 +486,7 @@ class AutoSetupCog(commands.Cog):
     
     async def get_evaluations_channel(self, guild: discord.Guild) -> Optional[discord.TextChannel]:
         """Retorna o canal de avaliações"""
-        channel_id = config.CHANNEL_IDS.get("avaliacoes")
+        channel_id = config.CHANNEL_IDS.get("avaliacoes_logs")
         channel = guild.get_channel(channel_id)
         
         if not channel:

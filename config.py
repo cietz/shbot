@@ -108,6 +108,7 @@ CHANNEL_IDS = {
     "eventos": 1457725917588885554,
     "level_ups": 1454549598164226280,
     "avaliacoes": 1459589139304419421,
+    "avaliacoes_logs": 1457725920403128484,
 }
 
 # Cores dos cargos (em hexadecimal)
