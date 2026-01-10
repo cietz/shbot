@@ -105,8 +105,12 @@ class MinigamesCog(commands.Cog):
         """Roleta Shark - 1 gratuito por dia, tickets extras via eventos!"""
         user_id = interaction.user.id
         
-        # Verifica cooldown diário (24h)
-        can_spin, remaining = CooldownManager.check(user_id, 'roulette')
+        # Busca dados do usuário primeiro para verificar VIP
+        user_data = UserQueries.get_or_create_user(user_id, interaction.user.display_name)
+        is_vip = user_data.get('is_vip', False)
+        
+        # Verifica cooldown diário (24h FREE, 20h VIP)
+        can_spin, remaining = CooldownManager.check(user_id, 'roulette', is_vip=is_vip)
         
         # Verifica se tem ticket extra
         reward = RewardQueries.get_reward(user_id, 'roulette_ticket')
@@ -115,18 +119,16 @@ class MinigamesCog(commands.Cog):
         # Precisa cooldown liberado OU ticket extra
         if not can_spin and not has_ticket:
             remaining_text = CooldownManager.format_remaining(remaining)
+            vip_tip = "" if is_vip else "\n👑 **VIPs têm cooldown reduzido!**"
             embed = discord.Embed(
                 title="🎰 Roleta em Cooldown",
                 description=f"Você já usou seu giro gratuito de hoje!\n\n"
                            f"**Próximo giro em:** {remaining_text}\n"
-                           f"**Dica:** Participe de eventos para ganhar tickets extras!",
+                           f"**Dica:** Participe de eventos para ganhar tickets extras!{vip_tip}",
                 color=config.EMBED_COLOR_WARNING
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
-        
-        # Garante que usuário existe
-        user_data = UserQueries.get_or_create_user(user_id, interaction.user.display_name)
         
         # Animação inicial
         await interaction.response.defer(ephemeral=True)
@@ -170,14 +172,18 @@ class MinigamesCog(commands.Cog):
         
         elif prize.get('type') == 'badge_coins':
             badge = prize.get('badge')
-            coins_gained = prize.get('coins', 5)
+            coins_base = prize.get('coins', 5)
+            # VIPs ganham o dobro de moedas
+            coins_gained = int(coins_base * config.VIP_COINS_MULTIPLIER) if is_vip else coins_base
             if badge:
                 BadgeQueries.award_badge(user_id, badge, 'special')
                 badge_text = f"🏅 **Insígnia: {badge}**"
             UserQueries.update_coins(user_id, coins_gained)
         
         elif prize.get('type') == 'rare_coin':
-            coins_gained = prize.get('coins', 10)
+            coins_base = prize.get('coins', 10)
+            # VIPs ganham o dobro de moedas
+            coins_gained = int(coins_base * config.VIP_COINS_MULTIPLIER) if is_vip else coins_base
             UserQueries.update_coins(user_id, coins_gained)
         
         # Determina cor e título baseado no prêmio
@@ -280,8 +286,9 @@ class MinigamesCog(commands.Cog):
         # Usa a lootbox
         RewardQueries.use_reward(user_id, 'lootbox')
         
-        # Garante que usuário existe
+        # Garante que usuário existe e verifica VIP
         user_data = UserQueries.get_or_create_user(user_id, interaction.user.display_name)
+        is_vip = user_data.get('is_vip', False)
         
         # Sorteia prêmio
         prize = self.weighted_choice(config.LOOTBOX_PRIZES)
@@ -300,9 +307,12 @@ class MinigamesCog(commands.Cog):
                 rewards.append(f"⭐ **+{xp_base} XP**")
         
         elif prize.get('type') == 'coins':
-            coins = prize.get('coins', 5)
+            coins_base = prize.get('coins', 5)
+            # VIPs ganham o dobro de moedas
+            coins = int(coins_base * config.VIP_COINS_MULTIPLIER) if is_vip else coins_base
             UserQueries.update_coins(user_id, coins)
-            rewards.append(f"🪙 **+{coins} SHARK COINS**")
+            vip_bonus = " 👑" if is_vip and coins > coins_base else ""
+            rewards.append(f"🪙 **+{coins} SHARK COINS**{vip_bonus}")
             color = config.EMBED_COLOR_GOLD
         
         elif prize.get('type') == 'special_role':
@@ -374,8 +384,12 @@ class MinigamesCog(commands.Cog):
         """Raspadinha Shark - 1 gratuito por semana, tickets extras via lootbox!"""
         user_id = interaction.user.id
         
-        # Verifica cooldown semanal (7 dias)
-        can_scratch, remaining = CooldownManager.check(user_id, 'scratch')
+        # Busca dados do usuário primeiro para verificar VIP
+        user_data = UserQueries.get_or_create_user(user_id, interaction.user.display_name)
+        is_vip = user_data.get('is_vip', False)
+        
+        # Verifica cooldown semanal (7 dias FREE, 5 dias VIP)
+        can_scratch, remaining = CooldownManager.check(user_id, 'scratch', is_vip=is_vip)
         
         # Verifica se tem ticket extra
         reward = RewardQueries.get_reward(user_id, 'scratch_ticket')
@@ -384,11 +398,12 @@ class MinigamesCog(commands.Cog):
         # Precisa cooldown liberado OU ticket extra
         if not can_scratch and not has_ticket:
             remaining_text = CooldownManager.format_remaining(remaining)
+            vip_tip = "" if is_vip else "\n👑 **VIPs têm cooldown reduzido!**"
             embed = discord.Embed(
                 title="🎟️ Sem Tickets",
                 description=f"Você já usou sua raspadinha gratuita da semana!\n\n"
                            f"**Próximo gratuito em:** {remaining_text}\n"
-                           f"**Ou:** Abra lootboxes para ganhar tickets extras!",
+                           f"**Ou:** Abra lootboxes para ganhar tickets extras!{vip_tip}",
                 color=config.EMBED_COLOR_WARNING
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -403,9 +418,6 @@ class MinigamesCog(commands.Cog):
         else:
             # Usa o gratuito semanal - seta cooldown
             CooldownManager.set(user_id, 'scratch')
-        
-        # Garante que usuário existe
-        user_data = UserQueries.get_or_create_user(user_id, interaction.user.display_name)
         
         # Sorteia resultado
         result = self.weighted_choice(config.SCRATCH_PRIZES)

@@ -11,7 +11,7 @@ from database.queries import CooldownQueries
 class CooldownManager:
     """Gerencia cooldowns de ações"""
     
-    # Tipos de ações e seus cooldowns em segundos
+    # Tipos de ações e seus cooldowns em segundos (FREE)
     COOLDOWN_TYPES = {
         'checkin': 20 * 3600,       # 20 horas
         'roulette': 24 * 3600,      # 24 horas
@@ -20,8 +20,17 @@ class CooldownManager:
         'voice_xp': 300,            # 5 minutos
     }
     
+    # Cooldowns reduzidos para VIPs
+    VIP_COOLDOWN_TYPES = {
+        'checkin': 16 * 3600,       # 16 horas (VIP)
+        'roulette': 20 * 3600,      # 20 horas (VIP) - Free: 24h
+        'scratch': 5 * 24 * 3600,   # 5 dias (VIP) - Free: 7 dias
+        'message_xp': 60,           # igual
+        'voice_xp': 300,            # igual
+    }
+    
     @staticmethod
-    def check(user_id: int, action: str, override_seconds: int = None) -> Tuple[bool, int]:
+    def check(user_id: int, action: str, override_seconds: int = None, is_vip: bool = False) -> Tuple[bool, int]:
         """
         Verifica se ação pode ser executada.
         Retorna (pode_executar, segundos_restantes)
@@ -30,9 +39,12 @@ class CooldownManager:
             user_id: ID do usuário
             action: Tipo de ação
             override_seconds: Cooldown customizado (ignora COOLDOWN_TYPES se fornecido)
+            is_vip: Se True, usa cooldowns VIP reduzidos
         """
         if override_seconds is not None:
             cooldown_seconds = override_seconds
+        elif is_vip and action in CooldownManager.VIP_COOLDOWN_TYPES:
+            cooldown_seconds = CooldownManager.VIP_COOLDOWN_TYPES.get(action, 0)
         else:
             cooldown_seconds = CooldownManager.COOLDOWN_TYPES.get(action, 0)
         return CooldownQueries.check_cooldown(user_id, action, cooldown_seconds)
