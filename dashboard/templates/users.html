@@ -20,6 +20,7 @@
                     <th>XP</th>
                     <th>Coins</th>
                     <th>VIP</th>
+                    <th>Admin</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -44,7 +45,14 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-secondary" onclick="openEditModal('{{ user.user_id }}', '{{ user.username }}', {{ user.xp }}, {{ user.coins }}, {{ 'true' if user.is_vip else 'false' }})">
+                        {% if user.is_admin %}
+                        <span class="status-badge" style="background: rgba(255, 215, 0, 0.2); color: #FFD700;">🛡️ Admin</span>
+                        {% else %}
+                        <span class="status-badge status-inactive">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="openEditModal('{{ user.user_id }}', '{{ user.username }}', {{ user.xp }}, {{ user.coins }}, {{ 'true' if user.is_vip else 'false' }}, {{ 'true' if user.is_admin else 'false' }})">
                             <i data-lucide="edit-2" style="width: 14px;"></i> Editar
                         </button>
                     </td>
@@ -79,12 +87,22 @@
                 <input type="number" name="coins" id="edit_coins" class="form-control">
             </div>
 
-            <div class="form-group">
-                <label class="form-label">VIP Status</label>
-                <select name="is_vip" id="edit_is_vip" class="form-control">
-                    <option value="false">Free</option>
-                    <option value="true">VIP</option>
-                </select>
+            <div style="display: flex; gap: 15px;">
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label">VIP Status</label>
+                    <select name="is_vip" id="edit_is_vip" class="form-control">
+                        <option value="false">Free</option>
+                        <option value="true">VIP</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label">🛡️ Administrador</label>
+                    <select name="is_admin" id="edit_is_admin" class="form-control">
+                        <option value="false">Não</option>
+                        <option value="true">Sim</option>
+                    </select>
+                </div>
             </div>
 
             <div class="modal-actions">
@@ -96,7 +114,7 @@
 </div>
 
 <script>
-function openEditModal(id, username, xp, coins, isVip) {
+function openEditModal(id, username, xp, coins, isVip, isAdmin) {
     const modal = document.getElementById('editModal');
     modal.classList.add('active');
     
@@ -105,6 +123,7 @@ function openEditModal(id, username, xp, coins, isVip) {
     document.getElementById('edit_xp').value = xp;
     document.getElementById('edit_coins').value = coins;
     document.getElementById('edit_is_vip').value = isVip;
+    document.getElementById('edit_is_admin').value = isAdmin;
 }
 
 function closeEditModal() {

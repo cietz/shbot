@@ -96,9 +96,8 @@ class MinigamesCog(commands.Cog):
         
         # Cria embed do painel
         embed = discord.Embed(
-            title="🎮 Mini-Games & Check-in SharkClub",
+            title="🎮 Mini-Games SharkClub",
             description="Clique nos botões abaixo para jogar!\n\n"
-                       "📅 **Check-in Diário** - Ganhe XP todo dia!\n"
                        "🎰 **Roleta** - 1x por dia (VIPs: cooldown reduzido)\n"
                        "📦 **Lootbox** - Ganhe com 7 dias de streak\n"
                        "🎟️ **Raspadinha** - 1x por semana",
@@ -106,15 +105,8 @@ class MinigamesCog(commands.Cog):
         )
         embed.set_footer(text="🦈 SharkClub - Boa sorte!")
         
-        # Usa a view de minigames (já inclui todos os botões)
+        # Usa a view de minigames (apenas minigames, check-in fica no canal de check-in)
         view = MinigamesView(self.bot)
-        
-        # Adiciona também o botão de check-in
-        from cogs.checkin import CheckinView
-        checkin_view = CheckinView(self.bot)
-        for item in checkin_view.children:
-            # Precisa criar um novo botão com o mesmo callback
-            view.add_item(item)
         
         # Tenta encontrar mensagem existente
         try:

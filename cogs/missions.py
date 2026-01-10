@@ -654,9 +654,22 @@ class MissionsCog(commands.Cog):
                 break  # Só uma missão de react por vez
     
     @app_commands.command(name="missoes-semanais", description="[ADMIN] Ver as 5 missões semanais disponíveis")
-    @app_commands.checks.has_permissions(administrator=True)
     async def missoes_semanais(self, interaction: discord.Interaction):
-        """Lista todas as missões semanais disponíveis (apenas admins)"""
+        """Lista todas as missões semanais disponíveis (apenas admins do DB)"""
+        # Verificação via Banco de Dados
+        user_data = UserQueries.get_or_create_user(interaction.user.id, interaction.user.display_name)
+        
+        # Verifica se é admin no banco OU se tem permissão de administrador no Discord (opcional, mas seguro manter ambos ou só DB)
+        # O usuário pediu "verifique o banco", então vamos priorizar o banco.
+        if not user_data.get('is_admin', False):
+            embed = discord.Embed(
+                title="❌ Sem Permissão",
+                description="Este comando é restrito a **administradores do bot**.\n\nSe você é um admin, peça para ser adicionado no painel.",
+                color=config.EMBED_COLOR_ERROR
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
         embed = discord.Embed(
             title="📆 Missões Semanais SharkClub",
             description="Complete missões para ganhar XP e coins!\nUse o botão **📋 Minhas Missões** para ver seu progresso.",
@@ -679,17 +692,7 @@ class MissionsCog(commands.Cog):
         embed.set_footer(text="💡 Dica: Complete todas as 5 missões para maximizar seus ganhos!")
         await interaction.response.send_message(embed=embed)
     
-    @missoes_semanais.error
-    async def missoes_semanais_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.MissingPermissions):
-            embed = discord.Embed(
-                title="❌ Sem Permissão",
-                description="Este comando é apenas para **administradores**.\n\nUse o botão **📋 Minhas Missões** no canal de missões para ver suas missões!",
-                color=config.EMBED_COLOR_ERROR
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        else:
-            raise error
+
     
 
 

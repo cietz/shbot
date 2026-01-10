@@ -102,19 +102,22 @@ def update_user():
         xp = int(request.form.get('xp'))
         coins = int(request.form.get('coins'))
         is_vip = request.form.get('is_vip') == 'true'
+        is_admin = request.form.get('is_admin') == 'true'
         
-        logger.info(f"Updating user {user_id}: xp={xp}, coins={coins}, is_vip={is_vip}")
+        logger.info(f"Updating user {user_id}: xp={xp}, coins={coins}, is_vip={is_vip}, is_admin={is_admin}")
         
         supabase = get_supabase()
         result = supabase.table('users').update({
             'xp': xp,
             'coins': coins,
-            'is_vip': is_vip
+            'is_vip': is_vip,
+            'is_admin': is_admin
         }).eq('user_id', user_id).execute()
         
         logger.info(f"Update result: {result}")
         
-        flash(f"Usuário {user_id} atualizado com sucesso!", "success")
+        admin_text = " (Admin)" if is_admin else ""
+        flash(f"Usuário {user_id} atualizado com sucesso!{admin_text}", "success")
     except Exception as e:
         logger.error(f"Error updating user: {e}")
         flash(f"Erro ao atualizar: {str(e)}", "error")
@@ -415,80 +418,6 @@ def end_event():
         flash(f"Erro: {str(e)}", "error")
     
     return redirect(url_for('events'))
-
-
-# ═══════════════════════════════════════════════════════════════
-# GERENCIAMENTO DE ADMINISTRADORES
-# ═══════════════════════════════════════════════════════════════
-
-@app.route('/admins')
-@login_required
-def admins():
-    supabase = get_supabase()
-    
-    # Busca todos os admins
-    try:
-        admins_data = supabase.table('dashboard_admins').select('*').order('created_at', desc=True).execute().data
-    except:
-        # Se a tabela não existir, retorna lista vazia
-        admins_data = []
-    
-    return render_template('admins.html', 
-                           admins=admins_data, 
-                           title="Gerenciar Administradores", 
-                           active_page='admins')
-
-
-@app.route('/admins/add', methods=['POST'])
-@login_required
-def add_admin():
-    try:
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        if not username or not password:
-            flash("Preencha todos os campos!", "error")
-            return redirect(url_for('admins'))
-        
-        supabase = get_supabase()
-        
-        # Verifica se já existe
-        existing = supabase.table('dashboard_admins').select('*').eq('username', username).execute().data
-        if existing:
-            flash(f"Usuário '{username}' já existe!", "error")
-            return redirect(url_for('admins'))
-        
-        # Cria novo admin
-        from datetime import datetime
-        supabase.table('dashboard_admins').insert({
-            'username': username,
-            'password': password,  # Em produção, usar hash!
-            'created_at': datetime.utcnow().isoformat()
-        }).execute()
-        
-        flash(f"✅ Admin '{username}' adicionado com sucesso!", "success")
-    except Exception as e:
-        logger.error(f"Error adding admin: {e}")
-        flash(f"Erro: {str(e)}", "error")
-    
-    return redirect(url_for('admins'))
-
-
-@app.route('/admins/remove', methods=['POST'])
-@login_required
-def remove_admin():
-    try:
-        admin_id = int(request.form.get('admin_id'))
-        
-        supabase = get_supabase()
-        supabase.table('dashboard_admins').delete().eq('id', admin_id).execute()
-        
-        flash(f"✅ Admin removido com sucesso!", "success")
-    except Exception as e:
-        logger.error(f"Error removing admin: {e}")
-        flash(f"Erro: {str(e)}", "error")
-    
-    return redirect(url_for('admins'))
 
 
 if __name__ == '__main__':
