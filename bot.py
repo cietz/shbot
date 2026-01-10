@@ -63,12 +63,14 @@ class SharkBot(commands.Bot):
         from cogs.minigames import MinigamesView
         from cogs.checkin import CheckinView
         from cogs.activity import EvaluationPanelView
+        from cogs.events import EventPanelView
         
         # Registra as views
         self.add_view(MissionsView(self))
         self.add_view(MinigamesView(self))
         self.add_view(CheckinView(self))
         self.add_view(EvaluationPanelView(self))
+        self.add_view(EventPanelView())
         print("   ✅ Views persistentes registradas")
     
     async def on_ready(self):
