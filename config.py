@@ -373,7 +373,7 @@ WEEKLY_MISSIONS = {
         "category": "content",
     },
     "cacador_tendencias": {
-        "emoji": "�",
+        "emoji": "📈",
         "name": "Caçador de Tendências",
         "description": "Postar 1 insight atual sobre tráfego, criativo, copy ou métricas",
         "objective": "Postar 1 insight de tendência",
@@ -384,7 +384,7 @@ WEEKLY_MISSIONS = {
         "category": "trends",
     },
     "sharkmind": {
-        "emoji": "�",
+        "emoji": "🧠",
         "name": "SharkMind",
         "description": "Responder corretamente 5 perguntas de um quiz semanal",
         "objective": "Acertar 5 perguntas do quiz",
