@@ -12,9 +12,139 @@ from typing import Optional
 from database.queries import UserQueries, EventQueries
 from utils.embeds import SharkEmbeds
 import config
+import re
 
 # Timezone brasileiro (UTC-3)
 BR_TIMEZONE = timezone(timedelta(hours=-3))
+
+
+class EventParticipationView(discord.ui.View):
+    """View persistente para participar de eventos"""
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="Participar", style=discord.ButtonStyle.success, emoji="✅", custom_id="event_participate_btn")
+    async def participate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        
+        # Tenta extrair ID do evento do footer do embed
+        event_id = None
+        if interaction.message and interaction.message.embeds:
+            embed = interaction.message.embeds[0]
+            if embed.footer and embed.footer.text:
+                # Formato: 🆔 Evento #{id} | 🦈 SharkClub
+                match = re.search(r"Evento #(\d+)", embed.footer.text)
+                if match:
+                    event_id = int(match.group(1))
+        
+        if not event_id:
+            await interaction.followup.send("❌ Não foi possível identificar o evento.", ephemeral=True)
+            return
+            
+        # Busca evento
+        event = EventQueries.get_event(event_id)
+        if not event:
+            await interaction.followup.send("❌ Evento não encontrado no banco de dados.", ephemeral=True)
+            return
+            
+        # Verifica se está ativo
+        if not event.get('is_active'):
+             await interaction.followup.send("🔒 Este evento já foi encerrado.", ephemeral=True)
+             return
+
+        # Verifica horário
+        now = datetime.now(timezone.utc)
+        start_time = event.get('starts_at') or event.get('start_time')
+        end_time = event.get('ends_at') or event.get('end_time')
+        
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            
+        if start_time and now < start_time:
+             await interaction.followup.send(f"⏳ O evento ainda não começou! Aguarde <t:{int(start_time.timestamp())}:R>.", ephemeral=True)
+             return
+             
+        if end_time and now > end_time:
+             await interaction.followup.send("🔒 O evento já terminou.", ephemeral=True)
+             return
+
+        # Marca presença
+        user_id = interaction.user.id
+        username = interaction.user.display_name
+        
+        user_data = UserQueries.get_or_create_user(user_id, username)
+        is_vip = user_data.get('is_vip', False)
+        
+        presence = EventQueries.mark_presence(event_id, user_id, is_vip)
+        
+        if not presence:
+            await interaction.followup.send(f"✅ Você já marcou presença em **{event['event_name']}**!", ephemeral=True)
+            return
+
+        # Dá recompensas
+        xp_earned = presence.get('xp_earned', 0)
+        coins_earned = presence.get('coins_earned', 0)
+        multiplier = presence.get('presence_multiplier', 1)
+        
+        UserQueries.update_xp(user_id, xp_earned)
+        UserQueries.update_coins(user_id, coins_earned)
+        
+        # Embed de sucesso
+        color = config.EMBED_COLOR_VIP if is_vip else config.EMBED_COLOR_SUCCESS
+        status_emoji = config.EMOJI_VIP if is_vip else config.EMOJI_FREE
+        
+        embed = discord.Embed(
+            title=f"✅ Presença Confirmada! {status_emoji}",
+            description=f"Você está participando do evento **{event['event_name']}**!",
+            color=color
+        )
+        embed.add_field(name="⭐ XP Ganho", value=f"+{xp_earned} XP", inline=True)
+        embed.add_field(name="🪙 Moedas", value=f"+{coins_earned}", inline=True)
+        if is_vip and multiplier > 1:
+            embed.add_field(name=f"{config.EMOJI_VIP} Bônus VIP!", value=f"Presença X{multiplier}!", inline=False)
+            
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        
+        # Atualiza o anúncio original
+        cog = interaction.client.get_cog('EventsCog')
+        if cog:
+            await cog.update_event_announcement(interaction.guild, event)
+
+    @discord.ui.button(label="Meus Eventos", style=discord.ButtonStyle.secondary, emoji="📅", custom_id="event_history_btn")
+    async def history_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        
+        user_id = interaction.user.id
+        presences = EventQueries.get_user_event_presences(user_id, days=30)
+        total_xp = EventQueries.get_user_total_event_xp(user_id)
+        
+        embed = discord.Embed(
+            title=f"{config.EMOJI_EVENT} Suas Presenças (30 dias)",
+            color=config.EMBED_COLOR_PRIMARY
+        )
+        
+        if presences:
+            for p in presences[:10]:
+                event_name = p.get('event_name', f"Evento #{p['event_id']}")
+                # Se event_name não vier na query, busca evento (opcional, mas query costuma trazer tudo se for join)
+                # Assumindo que get_user_event_presences retorna dados crus ou joins. 
+                # Pelo código original do comando, ele faz EventQueries.get_event dentro do loop.
+                if 'event_name' not in p:
+                     evt = EventQueries.get_event(p['event_id'])
+                     if evt: event_name = evt['event_name']
+                
+                embed.add_field(
+                    name=event_name,
+                    value=f"⭐ {p['xp_earned']} XP | 🪙 {p['coins_earned']} coins",
+                    inline=True
+                )
+            embed.add_field(name="📊 Total XP Eventos", value=f"**{total_xp:,}** XP", inline=False)
+        else:
+            embed.description = "Você ainda não participou de nenhum evento."
+            
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class EventsCog(commands.Cog):
@@ -39,6 +169,9 @@ class EventsCog(commands.Cog):
         if not self.announce_new_events.is_running():
             self.announce_new_events.start()
             print("✅ Task de anúncios automáticos iniciada")
+            
+        # Registra a view persistente
+        self.bot.add_view(EventParticipationView())
     
     @tasks.loop(seconds=15)
     async def auto_close_events(self):
@@ -122,8 +255,8 @@ class EventsCog(commands.Cog):
                     # Cria embed
                     embed = self.create_event_announcement_embed(event, [])
                     
-                    # Envia para o canal
-                    message = await channel.send(embed=embed)
+                    # Envia para o canal com @everyone e botões
+                    message = await channel.send(content="@everyone", embed=embed, view=EventParticipationView())
                     
                     # Atualiza BD com message_id
                     EventQueries.update_event_message(event['id'], message.id, channel.id)
@@ -441,6 +574,43 @@ class EventsCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
+    @app_commands.command(name="admin-refresh-events", description="[ADMIN] Atualiza anúncios de eventos ativos com botões")
+    @is_admin()
+    async def admin_refresh_events(self, interaction: discord.Interaction):
+        """Força a atualização dos anúncios de eventos ativos para incluir os botões"""
+        await interaction.response.defer(ephemeral=True)
+        
+        events = EventQueries.get_active_events()
+        if not events:
+            await interaction.followup.send("⚠️ Nenhum evento ativo encontrado.", ephemeral=True)
+            return
+            
+        updated = 0
+        errors = 0
+        
+        for event in events:
+            try:
+                channel_id = event.get('channel_id')
+                message_id = event.get('message_id')
+                
+                if not channel_id or not message_id:
+                    continue
+                    
+                channel = self.bot.get_channel(int(channel_id))
+                if not channel:
+                    channel = await self.bot.fetch_channel(int(channel_id))
+                    
+                if channel:
+                    message = await channel.fetch_message(int(message_id))
+                    # Atualiza a view para incluir os botões
+                    await message.edit(view=EventParticipationView())
+                    updated += 1
+            except Exception as e:
+                print(f"Erro ao atualizar evento {event['id']}: {e}")
+                errors += 1
+                
+        await interaction.followup.send(f"✅ Atualização concluída!\nEventos atualizados: {updated}\nErros/Ignorados: {errors}", ephemeral=True)
+
     @app_commands.command(name="minhas-presencas", description="Ver suas presenças em eventos")
     async def minhas_presencas(self, interaction: discord.Interaction):
         """Mostra histórico de presenças do usuário"""
