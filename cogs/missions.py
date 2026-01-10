@@ -85,14 +85,16 @@ class MissionsCog(commands.Cog):
         for guild in self.bot.guilds:
             await self._send_missions_panel(guild)
     
-    async def _send_missions_panel(self, guild: discord.Guild):
-        """Envia painel de missões no canal de missões"""
+    async def _send_missions_panel(self, guild: discord.Guild, force_new: bool = False):
+        """Envia ou atualiza painel de missões no canal de missões"""
         # Busca o canal pelo ID fixo
-        channel = self.bot.get_channel(config.CHANNEL_IDS.get("missoes"))
+        channel_id = config.CHANNEL_IDS.get("missoes")
+        channel = self.bot.get_channel(channel_id)
         
         if not channel:
-            print(f"⚠️ Canal de missões não encontrado (ID: {config.CHANNEL_IDS.get('missoes')})")
-            return
+            msg = f"⚠️ Canal de missões não encontrado (ID: {channel_id})"
+            print(msg)
+            return False, msg
         
         # Cria embed do painel
         embed = discord.Embed(
@@ -110,21 +112,30 @@ class MissionsCog(commands.Cog):
         
         # Tenta encontrar mensagem existente
         try:
-            async for message in channel.history(limit=10):
-                if message.author == self.bot.user and message.embeds:
-                    first_embed = message.embeds[0]
-                    if first_embed.title and "Missões" in first_embed.title:
-                        await message.edit(embed=embed, view=view)
-                        print(f"✅ Painel de missões atualizado em {channel.name}")
-                        return
+            if not force_new:
+                async for message in channel.history(limit=10):
+                    if message.author == self.bot.user and message.embeds:
+                        first_embed = message.embeds[0]
+                        if first_embed.title and "Missões" in first_embed.title:
+                            await message.edit(embed=embed, view=view)
+                            msg = f"✅ Painel de missões atualizado em {channel.name}"
+                            print(msg)
+                            return True, msg
             
             # Envia nova mensagem
             await channel.send(embed=embed, view=view)
-            print(f"✅ Painel de missões enviado para {channel.name}")
+            msg = f"✅ Painel de missões enviado para {channel.name}"
+            print(msg)
+            return True, msg
+            
         except discord.Forbidden:
-            print(f"❌ Sem permissão para enviar no canal {channel.name}")
+            msg = f"❌ Sem permissão para enviar no canal {channel.name}"
+            print(msg)
+            return False, msg
         except Exception as e:
-            print(f"❌ Erro ao enviar painel de missões: {e}")
+            msg = f"❌ Erro ao enviar painel de missões: {e}"
+            print(msg)
+            return False, msg
     
     @app_commands.command(name="admin-setup-missoes", description="[ADMIN] Reenviar o painel de missões")
     async def admin_setup_missoes(self, interaction: discord.Interaction):
@@ -136,8 +147,13 @@ class MissionsCog(commands.Cog):
              return
 
         await interaction.response.defer(ephemeral=True)
-        await self._send_missions_panel(interaction.guild)
-        await interaction.followup.send("✅ Painel de missões reenviado!", ephemeral=True)
+        # Força envio de nova mensagem
+        success, msg = await self._send_missions_panel(interaction.guild, force_new=True)
+        
+        if success:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ Falha: {msg}", ephemeral=True)
 
     def cog_unload(self):
         self.check_weekly_reset.cancel()

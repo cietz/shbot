@@ -85,14 +85,16 @@ class MinigamesCog(commands.Cog):
         for guild in self.bot.guilds:
             await self._send_minigames_panel(guild)
     
-    async def _send_minigames_panel(self, guild: discord.Guild):
+    async def _send_minigames_panel(self, guild: discord.Guild, force_new: bool = False):
         """Envia ou atualiza painel de minigames no canal de minigames"""
         # Busca o canal pelo ID fixo
-        channel = self.bot.get_channel(config.CHANNEL_IDS.get("minigames"))
+        channel_id = config.CHANNEL_IDS.get("minigames")
+        channel = self.bot.get_channel(channel_id)
         
         if not channel:
-            print(f"⚠️ Canal de minigames não encontrado (ID: {config.CHANNEL_IDS.get('minigames')})")
-            return
+            msg = f"⚠️ Canal de minigames não encontrado (ID: {channel_id})"
+            print(msg)
+            return False, msg
         
         # Cria embed do painel
         embed = discord.Embed(
@@ -105,26 +107,35 @@ class MinigamesCog(commands.Cog):
         )
         embed.set_footer(text="🦈 SharkClub - Boa sorte!")
         
-        # Usa a view de minigames (apenas minigames, check-in fica no canal de check-in)
+        # Usa a view de minigames
         view = MinigamesView(self.bot)
         
         # Tenta encontrar mensagem existente
         try:
-            async for message in channel.history(limit=10):
-                if message.author == self.bot.user and message.embeds:
-                    first_embed = message.embeds[0]
-                    if first_embed.title and ("Mini-Games" in first_embed.title or "Mini-Game" in first_embed.title):
-                        await message.edit(embed=embed, view=view)
-                        print(f"✅ Painel de minigames atualizado em {channel.name}")
-                        return
+            if not force_new:
+                async for message in channel.history(limit=10):
+                    if message.author == self.bot.user and message.embeds:
+                        first_embed = message.embeds[0]
+                        if first_embed.title and ("Mini-Games" in first_embed.title or "Mini-Game" in first_embed.title):
+                            await message.edit(embed=embed, view=view)
+                            msg = f"✅ Painel de minigames atualizado em {channel.name}"
+                            print(msg)
+                            return True, msg
             
             # Envia nova mensagem
             await channel.send(embed=embed, view=view)
-            print(f"✅ Painel de minigames enviado para {channel.name}")
+            msg = f"✅ Painel de minigames enviado para {channel.name}"
+            print(msg)
+            return True, msg
+            
         except discord.Forbidden:
-            print(f"❌ Sem permissão para enviar no canal {channel.name}")
+            msg = f"❌ Sem permissão para enviar no canal {channel.name}"
+            print(msg)
+            return False, msg
         except Exception as e:
-            print(f"❌ Erro ao enviar painel de minigames: {e}")
+            msg = f"❌ Erro ao enviar painel de minigames: {e}"
+            print(msg)
+            return False, msg
     
     @app_commands.command(name="admin-setup-minigames", description="[ADMIN] Reenviar o painel de minigames")
     async def admin_setup_minigames(self, interaction: discord.Interaction):
@@ -136,8 +147,13 @@ class MinigamesCog(commands.Cog):
              return
 
         await interaction.response.defer(ephemeral=True)
-        await self._send_minigames_panel(interaction.guild)
-        await interaction.followup.send("✅ Painel de minigames reenviado!", ephemeral=True)
+        # Força envio de nova mensagem
+        success, msg = await self._send_minigames_panel(interaction.guild, force_new=True)
+        
+        if success:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ Falha: {msg}", ephemeral=True)
 
     # Métodos internos para execução via botão
     async def _execute_roleta(self, interaction: discord.Interaction):

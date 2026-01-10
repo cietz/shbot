@@ -56,14 +56,16 @@ class CheckinCog(commands.Cog):
         for guild in self.bot.guilds:
             await self._send_checkin_panel(guild)
     
-    async def _send_checkin_panel(self, guild: discord.Guild):
-        """Envia painel de check-in no canal de check-in"""
+    async def _send_checkin_panel(self, guild: discord.Guild, force_new: bool = False):
+        """Envia ou atualiza painel de check-in no canal de check-in"""
         # Busca o canal pelo ID fixo
-        channel = self.bot.get_channel(config.CHANNEL_IDS.get("checkin"))
+        channel_id = config.CHANNEL_IDS.get("checkin")
+        channel = self.bot.get_channel(channel_id)
         
         if not channel:
-            print(f"⚠️ Canal de check-in não encontrado (ID: {config.CHANNEL_IDS.get('checkin')})")
-            return
+            msg = f"⚠️ Canal de check-in não encontrado (ID: {channel_id})"
+            print(msg)
+            return False, msg
         
         # Cria embed do painel
         embed = discord.Embed(
@@ -81,21 +83,30 @@ class CheckinCog(commands.Cog):
         
         # Tenta encontrar mensagem existente
         try:
-            async for message in channel.history(limit=10):
-                if message.author == self.bot.user and message.embeds:
-                    first_embed = message.embeds[0]
-                    if first_embed.title and "Check-in" in first_embed.title:
-                        await message.edit(embed=embed, view=view)
-                        print(f"✅ Painel de check-in atualizado em {channel.name}")
-                        return
+            if not force_new:
+                async for message in channel.history(limit=10):
+                    if message.author == self.bot.user and message.embeds:
+                        first_embed = message.embeds[0]
+                        if first_embed.title and "Check-in" in first_embed.title:
+                            await message.edit(embed=embed, view=view)
+                            msg = f"✅ Painel de check-in atualizado em {channel.name}"
+                            print(msg)
+                            return True, msg
             
             # Envia nova mensagem
             await channel.send(embed=embed, view=view)
-            print(f"✅ Painel de check-in enviado para {channel.name}")
+            msg = f"✅ Painel de check-in enviado para {channel.name}"
+            print(msg)
+            return True, msg
+            
         except discord.Forbidden:
-            print(f"❌ Sem permissão para enviar no canal {channel.name}")
+            msg = f"❌ Sem permissão para enviar no canal {channel.name}"
+            print(msg)
+            return False, msg
         except Exception as e:
-            print(f"❌ Erro ao enviar painel de check-in: {e}")
+            msg = f"❌ Erro ao enviar painel de check-in: {e}"
+            print(msg)
+            return False, msg
     
     @app_commands.command(name="admin-setup-checkin", description="[ADMIN] Reenviar o painel de check-in")
     async def admin_setup_checkin(self, interaction: discord.Interaction):
@@ -107,8 +118,13 @@ class CheckinCog(commands.Cog):
              return
 
         await interaction.response.defer(ephemeral=True)
-        await self._send_checkin_panel(interaction.guild)
-        await interaction.followup.send("✅ Painel de check-in reenviado!", ephemeral=True)
+        # Força envio de nova mensagem
+        success, msg = await self._send_checkin_panel(interaction.guild, force_new=True)
+        
+        if success:
+            await interaction.followup.send(f"{msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ Falha: {msg}", ephemeral=True)
 
     # Método interno para execução via botão
     async def _execute_checkin(self, interaction: discord.Interaction):
