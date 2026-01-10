@@ -1,0 +1,100 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="glass-card stat-card">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);">
+            <i data-lucide="shield"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ admins|length }}</h3>
+            <p>Total de Admins</p>
+        </div>
+    </div>
+    <div class="glass-card stat-card">
+        <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+            <i data-lucide="user-plus"></i>
+        </div>
+        <div class="stat-info">
+            <h3>Adicionar</h3>
+            <p>Novo Admin</p>
+        </div>
+    </div>
+</div>
+
+<!-- Formulário para adicionar admin -->
+<div class="glass-card" style="margin-top: 20px;">
+    <h2 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <i data-lucide="user-plus"></i> Adicionar Novo Administrador
+    </h2>
+    
+    <form action="/admins/add" method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; align-items: end;">
+        <div>
+            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Nome de Usuário</label>
+            <input type="text" name="username" required placeholder="Digite o nome de usuário"
+                   style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary);">
+        </div>
+        <div>
+            <label style="display: block; margin-bottom: 8px; color: var(--text-secondary);">Senha</label>
+            <input type="password" name="password" required placeholder="Digite a senha"
+                   style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary);">
+        </div>
+        <button type="submit" class="btn btn-success" style="padding: 12px 24px;">
+            <i data-lucide="plus"></i> Adicionar
+        </button>
+    </form>
+</div>
+
+<!-- Lista de Admins -->
+<div class="glass-card" style="margin-top: 20px;">
+    <h2 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <i data-lucide="users"></i> Administradores Cadastrados
+    </h2>
+    
+    {% if admins %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Usuário</th>
+                <th>Criado em</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for admin in admins %}
+            <tr>
+                <td>#{{ admin.id }}</td>
+                <td>
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="shield" style="width: 16px; height: 16px; color: #00ff88;"></i>
+                        {{ admin.username }}
+                    </span>
+                </td>
+                <td>{{ admin.created_at[:10] if admin.created_at else 'N/A' }}</td>
+                <td>
+                    <form action="/admins/remove" method="POST" style="display: inline;"
+                          onsubmit="return confirm('Tem certeza que deseja remover este admin?');">
+                        <input type="hidden" name="admin_id" value="{{ admin.id }}">
+                        <button type="submit" class="btn btn-danger btn-small">
+                            <i data-lucide="trash-2"></i> Remover
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+        <i data-lucide="shield-off" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
+        <p>Nenhum administrador cadastrado ainda.</p>
+        <p style="font-size: 14px; margin-top: 8px;">Use o formulário acima para adicionar o primeiro admin.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}

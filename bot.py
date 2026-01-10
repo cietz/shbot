@@ -53,6 +53,21 @@ class SharkBot(commands.Bot):
                 print(f"   ✅ Carregado: {ext}")
             except Exception as e:
                 print(f"   ❌ Erro ao carregar {ext}: {e}")
+        
+        # Registra Views persistentes para botões funcionarem após reinício
+        await self._register_persistent_views()
+    
+    async def _register_persistent_views(self):
+        """Registra todas as Views persistentes do bot"""
+        from cogs.missions import MissionsView
+        from cogs.minigames import MinigamesView
+        from cogs.checkin import CheckinView
+        
+        # Registra as views
+        self.add_view(MissionsView(self))
+        self.add_view(MinigamesView(self))
+        self.add_view(CheckinView(self))
+        print("   ✅ Views persistentes registradas")
     
     async def on_ready(self):
         """Evento quando o bot está pronto"""

@@ -15,11 +15,42 @@ from utils.cooldowns import CooldownManager
 import config
 
 
+# ═══════════════════════════════════════════════════════════════
+# VIEW COM BOTÃO PARA CHECK-IN
+# ═══════════════════════════════════════════════════════════════
+
+class CheckinView(discord.ui.View):
+    """View persistente com botão de check-in"""
+    
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=None)  # Persistente
+        self.bot = bot
+    
+    @discord.ui.button(
+        label="📅 Check-in Diário",
+        style=discord.ButtonStyle.success,
+        custom_id="checkin_daily",
+        row=1
+    )
+    async def checkin_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Realiza check-in via botão"""
+        checkin_cog = self.bot.get_cog('CheckinCog')
+        if checkin_cog:
+            await checkin_cog._execute_checkin(interaction)
+        else:
+            await interaction.response.send_message("❌ Erro ao carregar check-in.", ephemeral=True)
+
+
 class CheckinCog(commands.Cog):
     """Sistema de check-in diário"""
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+    
+    # Método interno para execução via botão
+    async def _execute_checkin(self, interaction: discord.Interaction):
+        """Executa check-in (usado por comando e botão)"""
+        await self.checkin.callback(self, interaction)
     
     def is_admin(self, interaction: discord.Interaction) -> bool:
         """Verifica se o usuário é admin (ignora cooldowns)"""

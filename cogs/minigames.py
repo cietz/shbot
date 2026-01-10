@@ -16,11 +16,148 @@ from utils.cooldowns import CooldownManager
 import config
 
 
+# ═══════════════════════════════════════════════════════════════
+# VIEW COM BOTÕES PARA MINIGAMES
+# ═══════════════════════════════════════════════════════════════
+
+class MinigamesView(discord.ui.View):
+    """View persistente com botões para minigames"""
+    
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=None)  # Persistente
+        self.bot = bot
+    
+    @discord.ui.button(
+        label="🎰 Roleta",
+        style=discord.ButtonStyle.danger,
+        custom_id="minigames_roleta",
+        row=0
+    )
+    async def roleta_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Executa a roleta via botão"""
+        minigames_cog = self.bot.get_cog('MinigamesCog')
+        if minigames_cog:
+            await minigames_cog._execute_roleta(interaction)
+        else:
+            await interaction.response.send_message("❌ Erro ao carregar minigame.", ephemeral=True)
+    
+    @discord.ui.button(
+        label="📦 Lootbox",
+        style=discord.ButtonStyle.primary,
+        custom_id="minigames_lootbox",
+        row=0
+    )
+    async def lootbox_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Abre lootbox via botão"""
+        minigames_cog = self.bot.get_cog('MinigamesCog')
+        if minigames_cog:
+            await minigames_cog._execute_lootbox(interaction)
+        else:
+            await interaction.response.send_message("❌ Erro ao carregar minigame.", ephemeral=True)
+    
+    @discord.ui.button(
+        label="🎟️ Raspadinha",
+        style=discord.ButtonStyle.success,
+        custom_id="minigames_raspadinha",
+        row=0
+    )
+    async def raspadinha_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Executa raspadinha via botão"""
+        minigames_cog = self.bot.get_cog('MinigamesCog')
+        if minigames_cog:
+            await minigames_cog._execute_raspadinha(interaction)
+        else:
+            await interaction.response.send_message("❌ Erro ao carregar minigame.", ephemeral=True)
+
+
 class MinigamesCog(commands.Cog):
     """Mini-games do SharkClub"""
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+    
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Envia painel de minigames no canal apropriado"""
+        import asyncio
+        await asyncio.sleep(3)  # Aguarda setup de canais
+        
+        for guild in self.bot.guilds:
+            await self._send_minigames_panel(guild)
+    
+    async def _send_minigames_panel(self, guild: discord.Guild):
+        """Envia ou atualiza painel de minigames no canal"""
+        # Busca o canal de minigames
+        channel = None
+        for ch in guild.text_channels:
+            if "minigames" in ch.name.lower() or "minigame" in ch.name.lower():
+                if "🦈" in ch.name:
+                    channel = ch
+                    break
+                channel = ch
+        
+        if not channel:
+            return
+        
+        # Cria embed do painel
+        embed = discord.Embed(
+            title="🎮 Mini-Games SharkClub",
+            description="Clique nos botões abaixo para jogar!\n\n"
+                       "🎰 **Roleta** - 1x por dia (VIPs: cooldown reduzido)\n"
+                       "📦 **Lootbox** - Ganhe com 7 dias de streak\n"
+                       "🎟️ **Raspadinha** - 1x por semana",
+            color=config.EMBED_COLOR_PRIMARY
+        )
+        embed.set_footer(text="🦈 SharkClub - Boa sorte!")
+        
+        # Cria view com botões
+        from cogs.checkin import CheckinView
+        
+        # View combinada com check-in + minigames
+        class CombinedView(discord.ui.View):
+            def __init__(view_self, bot):
+                super().__init__(timeout=None)
+                # Adiciona botões do CheckinView
+                checkin_view = CheckinView(bot)
+                for item in checkin_view.children:
+                    view_self.add_item(item)
+                # Adiciona botões do MinigamesView
+                minigames_view = MinigamesView(bot)
+                for item in minigames_view.children:
+                    view_self.add_item(item)
+        
+        view = CombinedView(self.bot)
+        
+        # Tenta encontrar mensagem existente
+        try:
+            async for message in channel.history(limit=10):
+                if message.author == self.bot.user and message.embeds:
+                    first_embed = message.embeds[0]
+                    if first_embed.title and "Mini-Games" in first_embed.title:
+                        await message.edit(embed=embed, view=view)
+                        print(f"✅ Painel de minigames atualizado em {channel.name}")
+                        return
+            
+            # Envia nova mensagem
+            await channel.send(embed=embed, view=view)
+            print(f"✅ Painel de minigames enviado para {channel.name}")
+        except discord.Forbidden:
+            print(f"❌ Sem permissão para enviar no canal {channel.name}")
+        except Exception as e:
+            print(f"❌ Erro ao enviar painel de minigames: {e}")
+    
+    # Métodos internos para execução via botão
+    async def _execute_roleta(self, interaction: discord.Interaction):
+        """Executa roleta (usado por comando e botão)"""
+        await self.roleta.callback(self, interaction)
+    
+    async def _execute_lootbox(self, interaction: discord.Interaction):
+        """Executa lootbox (usado por comando e botão)"""
+        await self.lootbox.callback(self, interaction)
+    
+    async def _execute_raspadinha(self, interaction: discord.Interaction):
+        """Executa raspadinha (usado por comando e botão)"""
+        await self.raspadinha.callback(self, interaction)
     
     def is_admin(self, interaction: discord.Interaction) -> bool:
         """Verifica se o usuário é admin (ignora cooldowns)"""

@@ -17,6 +17,59 @@ from utils.xp_calculator import XPCalculator
 import config
 
 
+# ═══════════════════════════════════════════════════════════════
+# VIEW COM BOTÃO PARA MISSÕES PESSOAIS
+# ═══════════════════════════════════════════════════════════════
+
+class MissionsView(discord.ui.View):
+    """View persistente com botão para ver missões pessoais"""
+    
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=None)  # Persistente
+        self.bot = bot
+    
+    @discord.ui.button(
+        label="📋 Minhas Missões",
+        style=discord.ButtonStyle.primary,
+        custom_id="missions_view_personal"
+    )
+    async def view_missions_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Mostra missões pessoais do usuário"""
+        await interaction.response.defer(ephemeral=True)
+        
+        missions_cog = self.bot.get_cog('MissionsCog')
+        if not missions_cog:
+            await interaction.followup.send("❌ Erro ao carregar missões.", ephemeral=True)
+            return
+        
+        user_id = interaction.user.id
+        
+        # Garante que usuário existe
+        UserQueries.get_or_create_user(user_id, interaction.user.display_name)
+        
+        # Busca missões ativas
+        daily = MissionQueries.get_active_missions(user_id, 'daily')
+        weekly = MissionQueries.get_active_missions(user_id, 'weekly')
+        secret = MissionQueries.get_active_missions(user_id, 'secret')
+        
+        # Se não tem missões diárias, gera novas
+        if not daily:
+            daily = await missions_cog.generate_daily_missions(user_id)
+        
+        # Se não tem missões semanais, gera novas
+        if not weekly:
+            weekly = await missions_cog.generate_weekly_missions(user_id)
+        
+        # Se é VIP e não tem missões secretas, gera novas
+        if UserQueries.is_vip(user_id) and not secret:
+            secret = await missions_cog.generate_secret_missions(user_id)
+        
+        # Cria embed customizado
+        embed = missions_cog.create_missions_embed(daily, weekly, secret)
+        
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
 class MissionsCog(commands.Cog):
     """Sistema de missões"""
     
@@ -136,6 +189,9 @@ class MissionsCog(commands.Cog):
         # Cria embed das missões semanais
         embed = self.create_weekly_missions_channel_embed()
         
+        # Cria view com botão
+        view = MissionsView(self.bot)
+        
         # Tenta encontrar a mensagem existente no canal (nas últimas 10 mensagens)
         try:
             async for message in channel.history(limit=10):
@@ -143,12 +199,12 @@ class MissionsCog(commands.Cog):
                     first_embed = message.embeds[0]
                     if first_embed.title and "Missões Semanais" in first_embed.title:
                         # Atualiza a mensagem existente
-                        await message.edit(embed=embed)
+                        await message.edit(embed=embed, view=view)
                         print(f"✅ Missões atualizadas no canal {channel.name}")
                         return
             
-            # Se não encontrou, envia nova mensagem
-            await channel.send(embed=embed)
+            # Se não encontrou, envia nova mensagem com botão
+            await channel.send(embed=embed, view=view)
             print(f"✅ Missões enviadas para o canal {channel.name}")
             
         except discord.Forbidden:
@@ -550,12 +606,13 @@ class MissionsCog(commands.Cog):
                     MissionQueries.update_mission_progress(mission['id'], new_progress)
                 break  # Só uma missão de react por vez
     
-    @app_commands.command(name="missoes-semanais", description="Ver as 5 missões semanais disponíveis")
+    @app_commands.command(name="missoes-semanais", description="[ADMIN] Ver as 5 missões semanais disponíveis")
+    @app_commands.checks.has_permissions(administrator=True)
     async def missoes_semanais(self, interaction: discord.Interaction):
-        """Lista todas as missões semanais disponíveis"""
+        """Lista todas as missões semanais disponíveis (apenas admins)"""
         embed = discord.Embed(
             title="📆 Missões Semanais SharkClub",
-            description="Complete missões para ganhar XP e coins!\nUse `/missoes` para ver seu progresso.",
+            description="Complete missões para ganhar XP e coins!\nUse o botão **📋 Minhas Missões** para ver seu progresso.",
             color=config.EMBED_COLOR_PRIMARY
         )
         
@@ -574,6 +631,18 @@ class MissionsCog(commands.Cog):
         
         embed.set_footer(text="💡 Dica: Complete todas as 5 missões para maximizar seus ganhos!")
         await interaction.response.send_message(embed=embed)
+    
+    @missoes_semanais.error
+    async def missoes_semanais_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.MissingPermissions):
+            embed = discord.Embed(
+                title="❌ Sem Permissão",
+                description="Este comando é apenas para **administradores**.\n\nUse o botão **📋 Minhas Missões** no canal de missões para ver suas missões!",
+                color=config.EMBED_COLOR_ERROR
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            raise error
     
 
 
