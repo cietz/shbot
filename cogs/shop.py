@@ -243,7 +243,15 @@ class ScheduleCallView(discord.ui.View):
                 reports_channel_id = config.CHANNEL_IDS.get("calls_marcadas")
                 reports_channel = self.bot.get_channel(reports_channel_id)
                 
+                # Fallback: Tenta fetch se get retornar None (pode não estar no cache)
+                if not reports_channel:
+                    try:
+                        reports_channel = await self.bot.fetch_channel(reports_channel_id)
+                    except Exception as e:
+                        print(f"❌ Erro ao fazer fetch do canal {reports_channel_id}: {e}")
+                
                 if reports_channel:
+                    print(f"📢 Enviando relatório para canal: {reports_channel.name} ({reports_channel.id})")
                     report_embed = discord.Embed(
                         title="📞 Nova Call Agendada!",
                         description=f"Uma call foi comprada e agendada com sucesso!",
@@ -796,6 +804,34 @@ class ShopCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         
         purchases = ShopQueries.get_user_purchases(interaction.user.id, limit=10)
+
+    @app_commands.command(name="admin-test-report", description="[ADMIN] Testar envio de report de call no canal fixo")
+    async def admin_test_report(self, interaction: discord.Interaction):
+        """Teste de envio para o canal de reports"""
+        from database.queries import UserQueries
+        # Verifica admin rapido
+        user_data = UserQueries.get_user(interaction.user.id)
+        if not user_data or not user_data.get('is_admin'):
+            await interaction.response.send_message("❌ Apenas admins.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        
+        channel_id = config.CHANNEL_IDS.get("calls_marcadas")
+        try:
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                channel = await self.bot.fetch_channel(channel_id)
+            
+            if not channel:
+                await interaction.followup.send(f"❌ Canal ID {channel_id} não encontrado!", ephemeral=True)
+                return
+                
+            await channel.send(f"🧪 Teste de relatório de call. Canal correto: {channel.name} ({channel.id})")
+            await interaction.followup.send(f"✅ Mensagem enviada para {channel.mention}", ephemeral=True)
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erro ao testar canal: {e}", ephemeral=True)
         
         if not purchases:
             await interaction.followup.send(

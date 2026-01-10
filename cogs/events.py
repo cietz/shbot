@@ -266,8 +266,8 @@ class EventsCog(commands.Cog):
         active_event = None
         for event in events:
             # Verifica se o evento tem horário definido e se está dentro do período
-            start_time = event.get('start_time')
-            end_time = event.get('end_time')
+            start_time = event.get('starts_at') or event.get('start_time')
+            end_time = event.get('ends_at') or event.get('end_time')
             
             if start_time and end_time:
                 # Converte strings ISO para datetime se necessário
