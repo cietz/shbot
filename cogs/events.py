@@ -41,24 +41,41 @@ class EventsCog(commands.Cog):
     
     @tasks.loop(minutes=1)
     async def auto_close_events(self):
-        """Verifica eventos que passaram do horário e os encerra automaticamente"""
+        """Verifica eventos que passaram do horário e os encerra automaticamente. Também atualiza status."""
         try:
             events = EventQueries.get_active_events()
             now = datetime.now(timezone.utc)
             
             for event in events:
-                end_time = event.get('end_time')
-                if not end_time:
-                    continue
+                end_time = event.get('end_time') or event.get('ends_at')
+                start_time = event.get('start_time') or event.get('starts_at')
                 
                 # Converte string ISO para datetime
                 if isinstance(end_time, str):
                     end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
                 
-                # Se o evento já passou do horário de término, encerra
-                if end_time <= now:
+                # Verifica encerramento
+                if end_time and end_time <= now:
                     EventQueries.close_event(event['id'])
                     print(f"🔒 Evento #{event['id']} '{event['event_name']}' encerrado automaticamente")
+                    
+                    # Atualiza mensagem final
+                    if event.get('message_id') and event.get('channel_id'):
+                        channel = self.bot.get_channel(int(event['channel_id']))
+                        if channel:
+                            await self.update_event_announcement(channel.guild, event)
+                    continue
+
+                # Atualiza status (Em Breve -> Ativo) e contadores
+                if event.get('message_id') and event.get('channel_id'):
+                    try:
+                        channel = self.bot.get_channel(int(event['channel_id']))
+                        if channel:
+                            await self.update_event_announcement(channel.guild, event)
+                    except Exception as e:
+                        # Ignora erros de update pontuais
+                        pass
+                        
         except Exception as e:
             print(f"⚠️ Erro ao verificar auto-fechamento de eventos: {e}")
 
@@ -113,11 +130,49 @@ class EventsCog(commands.Cog):
         }
         emoji = tipo_emoji.get(event.get('event_type', 'event'), '🎪')
         
+        # Converte horários
+        start_time = event.get('starts_at') or event.get('start_time')
+        end_time = event.get('ends_at') or event.get('end_time')
+        
+        now = datetime.now(timezone.utc)
+        
+        # Converte strings para datetime
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            
+        is_future = start_time and start_time > now
+        is_ended = end_time and end_time <= now
+        
+        if is_future:
+            status_text = "⏳ Em Breve!"
+            desc_text = f"Prepare-se! O evento começará <t:{int(start_time.timestamp())}:R>."
+            color = config.EMBED_COLOR_WARNING
+        elif is_ended:
+            status_text = "🔒 Encerrado"
+            desc_text = "Este evento já foi finalizado."
+            color = config.EMBED_COLOR_ERROR
+        else:
+            status_text = "🟢 Ao Vivo / Ativo"
+            desc_text = "Evento em andamento! Participe agora!"
+            color = config.EMBED_COLOR_SUCCESS
+            
+        custom_desc = event.get('description')
+        if custom_desc:
+            desc_text = f"{custom_desc}\n\n{desc_text}"
+        
         embed = discord.Embed(
-            title=f"{emoji} {event['event_name']}",
-            description=event.get('description') or "Evento em andamento!",
-            color=config.EMBED_COLOR_GOLD
+            title=f"{emoji} {event['event_name']} | {status_text}",
+            description=desc_text,
+            color=color
         )
+        
+        # Datas
+        if start_time:
+            embed.add_field(name="⏰ Início", value=f"<t:{int(start_time.timestamp())}:f>", inline=True)
+        if end_time:
+            embed.add_field(name="🏁 Término", value=f"<t:{int(end_time.timestamp())}:f>", inline=True)
         
         embed.add_field(name="⭐ Recompensa XP", value=f"+{event['xp_reward']} XP", inline=True)
         embed.add_field(name="🪙 Moedas", value=f"+{event['coins_reward']}", inline=True)
@@ -134,11 +189,16 @@ class EventsCog(commands.Cog):
         else:
             embed.add_field(name="👥 Participantes", value="_Nenhum ainda - seja o primeiro!_", inline=False)
         
-        embed.add_field(
-            name="📝 Como participar",
-            value=f"Use o comando `/presenca {event['id']}` para confirmar!",
-            inline=False
-        )
+        if not is_ended:
+            cmd_text = f"Use o comando `/presenca` para confirmar!"
+            if is_future:
+                cmd_text = "Aguarde o início para marcar presença!"
+            
+            embed.add_field(
+                name="📝 Como participar",
+                value=cmd_text,
+                inline=False
+            )
         
         embed.set_footer(text=f"🆔 Evento #{event['id']} | 🦈 SharkClub")
         return embed
@@ -172,10 +232,9 @@ class EventsCog(commands.Cog):
             
             # Edita a mensagem
             await message.edit(embed=new_embed)
-            print(f"📢 Anúncio do evento #{event['id']} atualizado ({len(presences)} participantes)")
         except Exception as e:
             print(f"⚠️ Erro ao atualizar anúncio: {e}")
-    
+            
     # ═══════════════════════════════════════════════════════════════
     # COMANDOS DE USUÁRIO - MARCAR PRESENÇA
     # ═══════════════════════════════════════════════════════════════

@@ -239,12 +239,9 @@ class ScheduleCallView(discord.ui.View):
             
             # Envia relatório público no canal de reports
             try:
-                # Busca canal de reports por nome
-                reports_channel = None
-                for ch in guild.text_channels:
-                    if "calls-reports" in ch.name.lower():
-                        reports_channel = ch
-                        break
+                # Busca canal de reports pelo ID fixo
+                reports_channel_id = config.CHANNEL_IDS.get("calls_marcadas")
+                reports_channel = self.bot.get_channel(reports_channel_id)
                 
                 if reports_channel:
                     report_embed = discord.Embed(
@@ -269,6 +266,8 @@ class ScheduleCallView(discord.ui.View):
                     )
                     report_embed.set_footer(text=f"Call #{self.purchase_id} | 🦈 SharkClub Shop")
                     await reports_channel.send(embed=report_embed)
+                else:
+                    print(f"⚠️ Canal de reports de call não encontrado (ID: {reports_channel_id})")
             except Exception as e:
                 print(f"❌ Erro ao enviar relatório de call: {e}")
                 
