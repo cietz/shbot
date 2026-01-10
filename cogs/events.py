@@ -22,6 +22,7 @@ class EventsCog(commands.Cog):
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.known_active_ids = set()
     
     def cog_unload(self):
         """Cancela tasks ao descarregar cog"""
@@ -41,10 +42,28 @@ class EventsCog(commands.Cog):
     
     @tasks.loop(seconds=15)
     async def auto_close_events(self):
-        """Verifica eventos que passaram do horário e os encerra automaticamente. Também atualiza status."""
+        """Verifica eventos que passaram do horário e os encerra automaticamente. Deleta anúncios de encerrados."""
         try:
+            # Busca eventos ativos atuais no banco
             events = EventQueries.get_active_events()
+            current_active_ids = {e['id'] for e in events}
+            
+            # 1. Verifica eventos que sumiram (encerrados pela dashboard/externamente)
+            if self.known_active_ids:
+                ended_externally_ids = self.known_active_ids - current_active_ids
+                
+                for event_id in ended_externally_ids:
+                    # Busca info do evento (inativo) para poder deletar a mensagem
+                    event = EventQueries.get_event(event_id)
+                    if event:
+                        await self.delete_event_announcement(event)
+                        print(f"🗑️ Evento #{event_id} encerrado externamente - Anúncio removido")
+
+            # 2. Verifica eventos ativos que expiraram por tempo
             now = datetime.now(timezone.utc)
+            
+            # Lista para remover dos IDs ativos se expirarem agora
+            expired_ids = set()
             
             for event in events:
                 end_time = event.get('end_time') or event.get('ends_at')
@@ -59,11 +78,10 @@ class EventsCog(commands.Cog):
                     EventQueries.close_event(event['id'])
                     print(f"🔒 Evento #{event['id']} '{event['event_name']}' encerrado automaticamente")
                     
-                    # Atualiza mensagem final
-                    if event.get('message_id') and event.get('channel_id'):
-                        channel = self.bot.get_channel(int(event['channel_id']))
-                        if channel:
-                            await self.update_event_announcement(channel.guild, event)
+                    # Deleta o anúncio
+                    await self.delete_event_announcement(event)
+                    
+                    expired_ids.add(event['id'])
                     continue
 
                 # Atualiza status (Em Breve -> Ativo) e contadores
@@ -73,8 +91,10 @@ class EventsCog(commands.Cog):
                         if channel:
                             await self.update_event_announcement(channel.guild, event)
                     except Exception as e:
-                        # Ignora erros de update pontuais
                         pass
+            
+            # Atualiza lista de conhecidos (removendo os que acabaram de expirar)
+            self.known_active_ids = current_active_ids - expired_ids
                         
         except Exception as e:
             print(f"⚠️ Erro ao verificar auto-fechamento de eventos: {e}")
@@ -234,6 +254,29 @@ class EventsCog(commands.Cog):
             await message.edit(embed=new_embed)
         except Exception as e:
             print(f"⚠️ Erro ao atualizar anúncio: {e}")
+
+    async def delete_event_announcement(self, event: dict):
+        """Deleta a mensagem de anúncio do evento"""
+        try:
+            message_id = event.get('message_id')
+            channel_id = event.get('channel_id')
+            
+            if not message_id or not channel_id:
+                return
+            
+            channel = self.bot.get_channel(int(channel_id))
+            if not channel:
+                return
+                
+            try:
+                message = await channel.fetch_message(int(message_id))
+                await message.delete()
+            except discord.NotFound:
+                pass # Já foi deletada
+            except Exception as e:
+                print(f"⚠️ Erro ao deletar anúncio do evento {event['id']}: {e}")
+        except Exception as e:
+            print(f"⚠️ Erro no processo de deletar anúncio: {e}")
             
     # ═══════════════════════════════════════════════════════════════
     # COMANDOS DE USUÁRIO - MARCAR PRESENÇA
