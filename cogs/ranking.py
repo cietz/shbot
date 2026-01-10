@@ -1,104 +1,135 @@
+
 """
 🦈 SharkClub Discord Bot - Ranking Cog
-Sistema de rankings e leaderboards
+Sistema de leaderboard diário automático
 """
 
 import discord
 from discord import app_commands
-from discord.ext import commands
-from typing import Optional
-
-from database.queries import UserQueries
-from utils.embeds import SharkEmbeds
+from discord.ext import commands, tasks
+from datetime import datetime, timezone, time
 import config
+from database.queries import UserQueries
 
+# Horário que o leaderboard será postado (10:00 da manhã BRT = 13:00 UTC)
+LEADERBOARD_TIME = time(hour=13, minute=0, second=0)
 
 class RankingCog(commands.Cog):
-    """Sistema de rankings"""
+    """Sistema de Ranking Diário"""
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
     
-    @app_commands.command(name="ranking", description="Ver o ranking do servidor")
-    @app_commands.describe(categoria="Tipo de ranking")
-    @app_commands.choices(categoria=[
-        app_commands.Choice(name="XP Total", value="xp"),
-        app_commands.Choice(name="Nível", value="level"),
-        app_commands.Choice(name="Streak", value="current_streak"),
-    ])
-    async def ranking(self, interaction: discord.Interaction, categoria: Optional[str] = "xp"):
-        """Mostra ranking do servidor"""
-        order_field = categoria or "xp"
-        
-        # Títulos por categoria
-        titles = {
-            "xp": "🏆 Ranking de XP",
-            "level": "📊 Ranking de Níveis",
-            "current_streak": "🔥 Ranking de Streaks",
-        }
-        
-        # Busca top 10
-        top_users = UserQueries.get_top_users(limit=10, order_by=order_field)
-        
-        # Cria embed
-        embed = SharkEmbeds.ranking(top_users, titles.get(order_field, "Ranking"))
-        
-        # Adiciona posição do usuário se não estiver no top 10
-        user_rank = UserQueries.get_user_rank(interaction.user.id)
-        if user_rank > 10:
-            user_data = UserQueries.get_user(interaction.user.id)
-            if user_data:
-                value = user_data.get(order_field, 0)
-                embed.add_field(
-                    name="📍 Sua Posição",
-                    value=f"#{user_rank} - {value}",
-                    inline=False
-                )
-        
-        await interaction.response.send_message(embed=embed)
+    def cog_unload(self):
+        """Cancela tasks ao descarregar cog"""
+        self.daily_leaderboard.cancel()
     
-    @app_commands.command(name="leaderboard", description="Ver o Hall da Fama")
-    async def leaderboard(self, interaction: discord.Interaction):
-        """Hall da Fama do servidor"""
-        embed = discord.Embed(
-            title="🏆 Hall da Fama - SharkClub",
-            description="Os maiores predadores do oceano do tráfego!",
-            color=config.EMBED_COLOR_GOLD
-        )
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Inicia task de ranking diário"""
+        if not self.daily_leaderboard.is_running():
+            print("⏳ Iniciando agendador de Ranking Diário...")
+            self.daily_leaderboard.start()
+            print("✅ Ranking Diário agendado para 10:00 BRT")
+    
+    @tasks.loop(time=LEADERBOARD_TIME)
+    async def daily_leaderboard(self):
+        """Task que roda todos os dias para postar o ranking"""
+        await self.post_leaderboard()
+    
+    async def post_leaderboard(self):
+        """Lógica principal de postagem do leaderboard"""
+        print("📊 Gerando Leaderboard Diário...")
         
-        # Top 3 por XP
-        top_xp = UserQueries.get_top_users(limit=3, order_by='xp')
-        if top_xp:
-            medals = ["🥇", "🥈", "🥉"]
-            xp_text = ""
-            for i, u in enumerate(top_xp):
-                xp_text += f"{medals[i]} **{u.get('username', 'Usuário')}** - Lv.{u.get('level', 1)} ({u.get('xp', 0):,} XP)\n"
-            embed.add_field(name="⭐ Top XP", value=xp_text, inline=False)
-        
-        # Top 3 por Streak
-        top_streak = UserQueries.get_top_users(limit=3, order_by='longest_streak')
-        if top_streak:
-            medals = ["🥇", "🥈", "🥉"]
-            streak_text = ""
-            for i, u in enumerate(top_streak):
-                streak_text += f"{medals[i]} **{u.get('username', 'Usuário')}** - {u.get('longest_streak', 0)} dias\n"
-            embed.add_field(name="🔥 Maiores Streaks", value=streak_text, inline=False)
-        
-        # Estatísticas gerais (simplificado)
-        all_users = UserQueries.get_top_users(limit=1000, order_by='xp')
-        total_users = len(all_users)
-        total_xp = sum(u.get('xp', 0) for u in all_users)
-        
-        embed.add_field(
-            name="📊 Estatísticas do Servidor",
-            value=f"👥 {total_users} membros ativos\n⭐ {total_xp:,} XP total",
-            inline=False
-        )
-        
-        embed.set_footer(text="Continue participando para entrar no Hall da Fama!")
-        
-        await interaction.response.send_message(embed=embed)
+        try:
+            # Busca canal de ranking
+            channel_id = config.CHANNEL_IDS.get("ranking")
+            channel = self.bot.get_channel(channel_id)
+            
+            if not channel:
+                # Tenta fetch se não estiver no cache
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except:
+                    print(f"⚠️ Canal de Ranking não encontrado (ID: {channel_id})")
+                    return
+            
+            # Busca top 10 usuários
+            top_users = UserQueries.get_top_users(limit=10)
+            
+            if not top_users:
+                print("⚠️ Nenhum usuário encontrado para o ranking.")
+                return
 
+            # Cria Embed
+            embed = discord.Embed(
+                title="🏆 LEADERBOARD DIÁRIO | SHARK CLUB 🦈",
+                description="Os maiores predadores do oceano hoje!",
+                color=config.EMBED_COLOR_GOLD
+            )
+            embed.set_thumbnail(url="https://media1.tenor.com/m/v8hVDs0LSIoAAAAd/shark-attack.gif")
+            
+            leaderboard_text = ""
+            for i, user in enumerate(top_users, 1):
+                user_id = user['user_id']
+                xp = user['xp']
+                level = user.get('level', 1)
+                
+                # Medalhas para top 3
+                if i == 1:
+                    rank_icon = "🥇"
+                elif i == 2:
+                    rank_icon = "🥈"
+                elif i == 3:
+                    rank_icon = "🥉"
+                else:
+                    rank_icon = f"**#{i}**"
+                
+                # Tenta pegar nome do usuário no Discord
+                try:
+                    # Tenta pegar do cache primeiro
+                    member = channel.guild.get_member(user_id)
+                    if not member:
+                        member = await channel.guild.fetch_member(user_id)
+                    username = member.display_name
+                except:
+                    username = user.get('username', f"Tubarão #{user_id}")
+                
+                # Formatação da linha
+                leaderboard_text += f"{rank_icon} **{username}** • Nível {level} • `{xp:,} XP`\n"
+
+            embed.add_field(name="🔥 TOP 10 MAIS EXPERIENTES", value=leaderboard_text, inline=False)
+            
+            embed.set_footer(text="Continue interagindo para subir no ranking! 🚀")
+            embed.timestamp = datetime.now(timezone.utc)
+            
+            # Limpa mensagens antigas do bot no canal (opcional, para manter limpo, mas perigoso se deletar msg errada)
+            # Vamos apenas enviar a nova mensagem por enquanto para ser seguro.
+            
+            await channel.send(embed=embed)
+            print("✅ Leaderboard Diário postado com sucesso!")
+            
+        except Exception as e:
+            print(f"❌ Erro ao postar Leaderboard: {e}")
+
+    def is_admin():
+        """Decorator para verificar permissão de admin"""
+        async def predicate(interaction: discord.Interaction):
+            return interaction.user.guild_permissions.administrator
+        return app_commands.check(predicate)
+
+    @app_commands.command(name="admin-force-leaderboard", description="[ADMIN] Forçar postagem do leaderboard agora")
+    @is_admin()
+    async def force_leaderboard(self, interaction: discord.Interaction):
+        """Comando manual para testar o leaderboard"""
+        await interaction.response.defer(ephemeral=True)
+        await self.post_leaderboard()
+        await interaction.followup.send("✅ Leaderboard disparado manualmente!", ephemeral=True)
+
+    @force_leaderboard.error
+    async def admin_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CheckFailure):
+            await interaction.response.send_message("❌ Apenas admins podem usar este comando.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(RankingCog(bot))
