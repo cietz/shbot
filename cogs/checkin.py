@@ -123,8 +123,8 @@ class CheckinCog(commands.Cog):
     @app_commands.command(name="checkin", description="Faça seu check-in diário e ganhe XP!")
     async def checkin(self, interaction: discord.Interaction):
         """Realiza o check-in diário"""
-        # Defer para evitar timeout (resposta pública)
-        await interaction.response.defer()
+        # Defer para evitar timeout (resposta ephemeral)
+        await interaction.response.defer(ephemeral=True)
         
         user_id = interaction.user.id
         username = interaction.user.display_name
@@ -308,13 +308,13 @@ class CheckinCog(commands.Cog):
             milestone_rewards
         )
         
-        # Responde publicamente no chat (visível para todos)
-        await interaction.followup.send(embed=embed)
+        # Responde ephemeralmente (visível apenas para o user)
+        await interaction.followup.send(embed=embed, ephemeral=True)
         
-        # Se subiu de nível, envia embed de level up também (público)
+        # Se subiu de nível, envia embed de level up também (ephemeral)
         if leveled_up:
             level_up_embed = SharkEmbeds.level_up(interaction.user, old_level, new_level)
-            await interaction.followup.send(embed=level_up_embed)
+            await interaction.followup.send(embed=level_up_embed, ephemeral=True)
     
     def create_checkin_embed(self, user: discord.User, xp_earned: int, streak: int, 
                              total_xp: int, is_vip: bool, new_level: int = None,
