@@ -102,9 +102,7 @@ class CheckinCog(commands.Cog):
         """Executa check-in (usado por comando e botão)"""
         await self.checkin.callback(self, interaction)
     
-    def is_admin(self, interaction: discord.Interaction) -> bool:
-        """Verifica se o usuário é admin (ignora cooldowns)"""
-        return interaction.user.guild_permissions.administrator
+
     
     def get_cooldown_hours(self, is_vip: bool) -> int:
         """Retorna o cooldown de check-in baseado no status VIP"""
@@ -128,7 +126,7 @@ class CheckinCog(commands.Cog):
         
         user_id = interaction.user.id
         username = interaction.user.display_name
-        is_admin = self.is_admin(interaction)
+
         
         # Busca ou cria usuário
         user_data = UserQueries.get_or_create_user(user_id, username)
@@ -138,17 +136,16 @@ class CheckinCog(commands.Cog):
         cooldown_hours = self.get_cooldown_hours(is_vip)
         cooldown_seconds = cooldown_hours * 3600
         
-        # Verifica cooldown (admins ignoram)
-        if not is_admin:
-            can_checkin, remaining = CooldownManager.check(user_id, 'checkin', cooldown_seconds)
-            
-            if not can_checkin:
-                hours = remaining // 3600
-                minutes = (remaining % 3600) // 60
-                embed = SharkEmbeds.checkin_cooldown(hours, minutes)
-                # Cooldown é ephemeral para não poluir o chat
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
+        # Verifica cooldown (ninguém ignora)
+        can_checkin, remaining = CooldownManager.check(user_id, 'checkin', cooldown_seconds)
+        
+        if not can_checkin:
+            hours = remaining // 3600
+            minutes = (remaining % 3600) // 60
+            embed = SharkEmbeds.checkin_cooldown(hours, minutes)
+            # Cooldown é ephemeral para não poluir o chat
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
         
         # Calcula streak
         last_checkin = user_data.get('last_checkin')
