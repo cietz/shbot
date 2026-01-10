@@ -80,29 +80,25 @@ class MinigamesCog(commands.Cog):
     async def on_ready(self):
         """Envia painel de minigames no canal apropriado"""
         import asyncio
-        await asyncio.sleep(3)  # Aguarda setup de canais
+        await asyncio.sleep(5)  # Aguarda setup de canais
         
         for guild in self.bot.guilds:
             await self._send_minigames_panel(guild)
     
     async def _send_minigames_panel(self, guild: discord.Guild):
-        """Envia ou atualiza painel de minigames no canal"""
-        # Busca o canal de minigames
-        channel = None
-        for ch in guild.text_channels:
-            if "minigames" in ch.name.lower() or "minigame" in ch.name.lower():
-                if "🦈" in ch.name:
-                    channel = ch
-                    break
-                channel = ch
+        """Envia ou atualiza painel de minigames no canal de minigames"""
+        # Busca o canal pelo ID fixo
+        channel = self.bot.get_channel(config.CHANNEL_IDS.get("minigames"))
         
         if not channel:
+            print(f"⚠️ Canal de minigames não encontrado (ID: {config.CHANNEL_IDS.get('minigames')})")
             return
         
         # Cria embed do painel
         embed = discord.Embed(
-            title="🎮 Mini-Games SharkClub",
+            title="🎮 Mini-Games & Check-in SharkClub",
             description="Clique nos botões abaixo para jogar!\n\n"
+                       "📅 **Check-in Diário** - Ganhe XP todo dia!\n"
                        "🎰 **Roleta** - 1x por dia (VIPs: cooldown reduzido)\n"
                        "📦 **Lootbox** - Ganhe com 7 dias de streak\n"
                        "🎟️ **Raspadinha** - 1x por semana",
@@ -110,30 +106,22 @@ class MinigamesCog(commands.Cog):
         )
         embed.set_footer(text="🦈 SharkClub - Boa sorte!")
         
-        # Cria view com botões
+        # Usa a view de minigames (já inclui todos os botões)
+        view = MinigamesView(self.bot)
+        
+        # Adiciona também o botão de check-in
         from cogs.checkin import CheckinView
-        
-        # View combinada com check-in + minigames
-        class CombinedView(discord.ui.View):
-            def __init__(view_self, bot):
-                super().__init__(timeout=None)
-                # Adiciona botões do CheckinView
-                checkin_view = CheckinView(bot)
-                for item in checkin_view.children:
-                    view_self.add_item(item)
-                # Adiciona botões do MinigamesView
-                minigames_view = MinigamesView(bot)
-                for item in minigames_view.children:
-                    view_self.add_item(item)
-        
-        view = CombinedView(self.bot)
+        checkin_view = CheckinView(self.bot)
+        for item in checkin_view.children:
+            # Precisa criar um novo botão com o mesmo callback
+            view.add_item(item)
         
         # Tenta encontrar mensagem existente
         try:
             async for message in channel.history(limit=10):
                 if message.author == self.bot.user and message.embeds:
                     first_embed = message.embeds[0]
-                    if first_embed.title and "Mini-Games" in first_embed.title:
+                    if first_embed.title and ("Mini-Games" in first_embed.title or "Mini-Game" in first_embed.title):
                         await message.edit(embed=embed, view=view)
                         print(f"✅ Painel de minigames atualizado em {channel.name}")
                         return

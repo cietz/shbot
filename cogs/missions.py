@@ -77,24 +77,71 @@ class MissionsCog(commands.Cog):
         self.bot = bot
         self._missions_message_id = None  # ID da mensagem das missões no canal
     
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Envia painel de missões no canal apropriado"""
+        await asyncio.sleep(7)  # Aguarda setup
+        
+        for guild in self.bot.guilds:
+            await self._send_missions_panel(guild)
+    
+    async def _send_missions_panel(self, guild: discord.Guild):
+        """Envia painel de missões no canal de missões"""
+        # Busca o canal pelo ID fixo
+        channel = self.bot.get_channel(config.CHANNEL_IDS.get("missoes"))
+        
+        if not channel:
+            print(f"⚠️ Canal de missões não encontrado (ID: {config.CHANNEL_IDS.get('missoes')})")
+            return
+        
+        # Cria embed do painel
+        embed = discord.Embed(
+            title="📋 Missões SharkClub",
+            description="Clique no botão abaixo para ver suas missões!\n\n"
+                       "📅 **Missões Diárias** - Renovam todo dia\n"
+                       "📆 **Missões Semanais** - 5 missões por semana\n"
+                       "⭐ **Missões Secretas** - Exclusivo VIP",
+            color=config.EMBED_COLOR_PRIMARY
+        )
+        embed.set_footer(text="🦈 SharkClub - Complete missões para ganhar XP e coins!")
+        
+        # Cria view com botão
+        view = MissionsView(self.bot)
+        
+        # Tenta encontrar mensagem existente
+        try:
+            async for message in channel.history(limit=10):
+                if message.author == self.bot.user and message.embeds:
+                    first_embed = message.embeds[0]
+                    if first_embed.title and "Missões" in first_embed.title:
+                        await message.edit(embed=embed, view=view)
+                        print(f"✅ Painel de missões atualizado em {channel.name}")
+                        return
+            
+            # Envia nova mensagem
+            await channel.send(embed=embed, view=view)
+            print(f"✅ Painel de missões enviado para {channel.name}")
+        except discord.Forbidden:
+            print(f"❌ Sem permissão para enviar no canal {channel.name}")
+        except Exception as e:
+            print(f"❌ Erro ao enviar painel de missões: {e}")
+    
     def cog_unload(self):
         self.check_weekly_reset.cancel()
     
     @commands.Cog.listener()
-    async def on_ready(self):
-        """Inicia verificação de reset semanal e envia missões para o canal"""
+    async def on_ready_missions_gen(self):
+        """Inicia verificação de reset semanal e gera missões"""
         if not self.check_weekly_reset.is_running():
             self.check_weekly_reset.start()
         
         # Aguarda um pouco para garantir que os canais estão configurados
-        await asyncio.sleep(5)
+        await asyncio.sleep(8)
         
-        # Para cada servidor
+        # Para cada servidor - apenas gera missões
         for guild in self.bot.guilds:
             # Gera missões semanais para todos os membros automaticamente
             await self.generate_weekly_missions_for_all(guild)
-            # Envia missões para o canal
-            await self.send_missions_to_channel(guild)
     
     async def generate_weekly_missions_for_all(self, guild: discord.Guild):
         """Gera missões semanais para todos os membros do servidor que ainda não têm (OTIMIZADO)"""

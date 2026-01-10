@@ -93,6 +93,20 @@ DISCORD_ROLE_IDS = {
     10: None, # ID do cargo MESTRE SUPREMO
 }
 
+# ═══════════════════════════════════════════════════════════════
+# IDs DOS CANAIS FIXOS
+# ═══════════════════════════════════════════════════════════════
+
+CHANNEL_IDS = {
+    "ranking": 1457725911591031001,
+    "checkin": 1454626025416953988,
+    "missoes": 1457725913650298979,
+    "minigames": 1457725915319636093,
+    "ajudou": 1457735753080504565,
+    "calls_marcadas": 1458442547939508235,
+    "loja": 1459267133904126188,
+}
+
 # Cores dos cargos (em hexadecimal)
 CARGO_COLORS = {
     1: 0x808080,   # Cinza - Náufrago

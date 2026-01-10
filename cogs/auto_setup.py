@@ -239,41 +239,24 @@ class AutoSetupCog(commands.Cog):
             return False
     
     # ═══════════════════════════════════════════════════════════════
-    # SISTEMA DE CANAIS
+    # SISTEMA DE CANAIS (USANDO IDs FIXOS)
     # ═══════════════════════════════════════════════════════════════
     
     async def setup_channels(self, guild: discord.Guild):
-        """Cria canais necessários"""
-        print("  📺 Configurando canais...")
+        """Verifica canais fixos (não cria mais automaticamente)"""
+        print("  📺 Verificando canais fixos...")
         
-        # Categoria principal do bot
-        category = await self.get_or_create_category(guild, "🦈 SharkClub")
+        # Usa os IDs fixos do config - não cria canais automaticamente
+        import config
+        for channel_name, channel_id in config.CHANNEL_IDS.items():
+            channel = self.bot.get_channel(channel_id)
+            if channel:
+                self._channels[channel_name] = channel
+                print(f"     ✓ Canal '{channel_name}' encontrado")
+            else:
+                print(f"     ⚠ Canal '{channel_name}' não encontrado (ID: {channel_id})")
         
-        if category:
-            # Canais dentro da categoria
-            channels_to_create = [
-                {"name": "📢-anuncios-shark-🦈", "type": "text", "topic": "Anúncios e novidades do SharkClub"},
-                {"name": "🏆-ranking-🦈", "type": "text", "topic": "Ranking de membros"},
-                {"name": "📋-missoes-🦈", "type": "text", "topic": "Missões diárias e semanais"},
-                {"name": "🎮-minigames-🦈", "type": "text", "topic": "Área de minigames"},
-                {"name": "🎪-eventos-🦈", "type": "text", "topic": "Eventos e lives"},
-                {"name": "🔔-level-ups-🦈", "type": "text", "topic": "Notificações de level up"},
-                {"name": "⭐-avaliacoes-🦈", "type": "text", "topic": "Avaliações públicas de membros da comunidade"},
-                {"name": "🤝-ajudou-🦈", "type": "text", "topic": "Use /ajudou para agradecer quem te ajudou"},
-                {"name": "📞-calls-reports-🦈", "type": "text", "topic": "Relatório público de calls compradas"},
-            ]
-            
-            for channel_info in channels_to_create:
-                channel = await self.get_or_create_text_channel(
-                    guild, 
-                    channel_info["name"], 
-                    category=category,
-                    topic=channel_info.get("topic")
-                )
-                if channel:
-                    self._channels[channel_info["name"]] = channel
-        
-        print("  ✅ Canais configurados!")
+        print("  ✅ Canais verificados!")
     
     async def get_or_create_category(self, guild: discord.Guild, name: str) -> Optional[discord.CategoryChannel]:
         """Busca ou cria uma categoria"""

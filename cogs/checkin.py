@@ -47,6 +47,56 @@ class CheckinCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
     
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Envia painel de check-in no canal apropriado"""
+        import asyncio
+        await asyncio.sleep(6)  # Aguarda setup de canais
+        
+        for guild in self.bot.guilds:
+            await self._send_checkin_panel(guild)
+    
+    async def _send_checkin_panel(self, guild: discord.Guild):
+        """Envia painel de check-in no canal de check-in"""
+        # Busca o canal pelo ID fixo
+        channel = self.bot.get_channel(config.CHANNEL_IDS.get("checkin"))
+        
+        if not channel:
+            print(f"⚠️ Canal de check-in não encontrado (ID: {config.CHANNEL_IDS.get('checkin')})")
+            return
+        
+        # Cria embed do painel
+        embed = discord.Embed(
+            title="📅 Check-in Diário SharkClub",
+            description="Clique no botão abaixo para fazer seu check-in!\n\n"
+                       "🔥 **Streaks** - Ganhe bônus por dias consecutivos\n"
+                       "⭐ **XP Extra** - VIPs ganham mais XP\n"
+                       "🎁 **Marcos** - Recompensas especiais em 7, 14 e 30 dias!",
+            color=config.EMBED_COLOR_SUCCESS
+        )
+        embed.set_footer(text="🦈 SharkClub - Faça check-in todo dia!")
+        
+        # Cria view com botão
+        view = CheckinView(self.bot)
+        
+        # Tenta encontrar mensagem existente
+        try:
+            async for message in channel.history(limit=10):
+                if message.author == self.bot.user and message.embeds:
+                    first_embed = message.embeds[0]
+                    if first_embed.title and "Check-in" in first_embed.title:
+                        await message.edit(embed=embed, view=view)
+                        print(f"✅ Painel de check-in atualizado em {channel.name}")
+                        return
+            
+            # Envia nova mensagem
+            await channel.send(embed=embed, view=view)
+            print(f"✅ Painel de check-in enviado para {channel.name}")
+        except discord.Forbidden:
+            print(f"❌ Sem permissão para enviar no canal {channel.name}")
+        except Exception as e:
+            print(f"❌ Erro ao enviar painel de check-in: {e}")
+    
     # Método interno para execução via botão
     async def _execute_checkin(self, interaction: discord.Interaction):
         """Executa check-in (usado por comando e botão)"""
@@ -73,8 +123,8 @@ class CheckinCog(commands.Cog):
     @app_commands.command(name="checkin", description="Faça seu check-in diário e ganhe XP!")
     async def checkin(self, interaction: discord.Interaction):
         """Realiza o check-in diário"""
-        # Defer imediatamente para evitar timeout
-        await interaction.response.defer(ephemeral=True)
+        # Defer para evitar timeout (resposta pública)
+        await interaction.response.defer()
         
         user_id = interaction.user.id
         username = interaction.user.display_name
@@ -96,6 +146,7 @@ class CheckinCog(commands.Cog):
                 hours = remaining // 3600
                 minutes = (remaining % 3600) // 60
                 embed = SharkEmbeds.checkin_cooldown(hours, minutes)
+                # Cooldown é ephemeral para não poluir o chat
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
         
@@ -257,13 +308,13 @@ class CheckinCog(commands.Cog):
             milestone_rewards
         )
         
-        # Responde com ephemeral (apenas o usuário vê)
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        # Responde publicamente no chat (visível para todos)
+        await interaction.followup.send(embed=embed)
         
-        # Se subiu de nível, envia embed de level up também
+        # Se subiu de nível, envia embed de level up também (público)
         if leveled_up:
             level_up_embed = SharkEmbeds.level_up(interaction.user, old_level, new_level)
-            await interaction.followup.send(embed=level_up_embed, ephemeral=True)
+            await interaction.followup.send(embed=level_up_embed)
     
     def create_checkin_embed(self, user: discord.User, xp_earned: int, streak: int, 
                              total_xp: int, is_vip: bool, new_level: int = None,
