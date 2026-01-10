@@ -272,7 +272,7 @@ class ScheduleCallView(discord.ui.View):
                         value=f"{data_str} às {hora_str}",
                         inline=True
                     )
-                    report_embed.set_footer(text=f"Call #{self.purchase_id} | 🦈 SharkClub Shop")
+                    report_embed.set_footer(text=f"Call #{self.purchase_id} | 🦈 SharkClub Shop • Agendamento Confirmado")
                     await reports_channel.send(embed=report_embed)
                 else:
                     print(f"⚠️ Canal de reports de call não encontrado (ID: {reports_channel_id})")
