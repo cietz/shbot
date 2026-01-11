@@ -76,6 +76,8 @@ class MissionsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._missions_message_id = None  # ID da mensagem das missões no canal
+        # Tracking de tempo em voz para recompensas passivas
+        self.voice_join_times: Dict[int, datetime] = {}  # user_id -> timestamp de entrada
     
     @commands.Cog.listener()
     async def on_ready(self):
@@ -586,14 +588,22 @@ class MissionsCog(commands.Cog):
     
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        """Listener para progresso de missões baseado em entrada em canal de voz"""
+        """Listener para progresso de missões e recompensas passivas de voz"""
         # Ignora bots
         if member.bot:
             return
         
-        # Verifica se o usuário entrou em um canal de voz (antes não estava, agora está)
+        user_id = member.id
+        
+        # ═══════════════════════════════════════════════════════════════
+        # RECOMPENSAS PASSIVAS DE VOZ - Tracking de tempo
+        # ═══════════════════════════════════════════════════════════════
+        
+        # Usuário ENTROU em um canal de voz
         if before.channel is None and after.channel is not None:
-            user_id = member.id
+            # Registra timestamp de entrada para recompensas passivas
+            self.voice_join_times[user_id] = datetime.now(timezone.utc)
+            
             channel_id = after.channel.id if after.channel else 0
             
             # Registra atividade de voz (para missão secreta 1)
@@ -656,6 +666,32 @@ class MissionsCog(commands.Cog):
             # Verifica missão secreta 1: Atividade Consistente (apenas VIPs)
             if UserQueries.is_vip(user_id):
                 await self._check_activity_streak_mission(user_id)
+        
+        # Usuário SAIU de um canal de voz
+        elif before.channel is not None and after.channel is None:
+            # Calcula tempo em call e dá recompensas passivas
+            if user_id in self.voice_join_times:
+                join_time = self.voice_join_times.pop(user_id)
+                now = datetime.now(timezone.utc)
+                duration = now - join_time
+                minutes_in_call = duration.total_seconds() / 60
+                
+                # Verifica se ficou tempo suficiente para ganhar recompensa
+                required_minutes = config.VOICE_PASSIVE_MINUTES
+                if minutes_in_call >= required_minutes:
+                    # Calcula quantas vezes completou 1 hora (sem acumular mais de 1x por sessão)
+                    # Para simplicidade, dá 1x a recompensa por sessão de 1h+
+                    xp_reward = config.VOICE_PASSIVE_XP
+                    coins_reward = config.VOICE_PASSIVE_COINS
+                    
+                    # Garante que usuário existe
+                    UserQueries.get_or_create_user(user_id, member.display_name)
+                    
+                    # Dá as recompensas
+                    UserQueries.update_xp(user_id, xp_reward)
+                    UserQueries.update_coins(user_id, coins_reward)
+                    
+                    print(f"🎤 {member.display_name} ganhou +{xp_reward} XP e +{coins_reward} coins por {int(minutes_in_call)} min em call!")
     
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

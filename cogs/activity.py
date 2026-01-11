@@ -40,6 +40,20 @@ class EvaluationModal(discord.ui.Modal):
         evaluator = interaction.user
         comment_text = self.comment.value.strip()
         
+        # VERIFICAÇÃO DE COOLDOWN - Proteção dupla contra bypass
+        can_eval = EvaluationQueries.can_evaluate(
+            evaluator.id, 
+            self.target.id, 
+            config.EVALUATION_COOLDOWN_HOURS
+        )
+        
+        if not can_eval:
+            await interaction.response.send_message(
+                f"⏱️ Você já avaliou **{self.target.display_name}** nas últimas {config.EVALUATION_COOLDOWN_HOURS} horas. Tente novamente mais tarde.", 
+                ephemeral=True
+            )
+            return
+        
         # Busca dados de estrelas
         star_data = config.EVALUATION_STARS.get(self.stars, config.EVALUATION_STARS[3])
         xp_reward = star_data['xp']
@@ -160,6 +174,20 @@ class StarButton(discord.ui.Button):
         self.target = target
     
     async def callback(self, interaction: discord.Interaction):
+        # Verifica cooldown ANTES de abrir o modal
+        can_eval = EvaluationQueries.can_evaluate(
+            interaction.user.id, 
+            self.target.id, 
+            config.EVALUATION_COOLDOWN_HOURS
+        )
+        
+        if not can_eval:
+            await interaction.response.send_message(
+                f"⏱️ Você já avaliou **{self.target.display_name}** nas últimas {config.EVALUATION_COOLDOWN_HOURS} horas. Tente novamente mais tarde.", 
+                ephemeral=True
+            )
+            return
+        
         # Abre o modal para escrever comentário
         modal = EvaluationModal(self.target, self.stars)
         await interaction.response.send_modal(modal)

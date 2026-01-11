@@ -311,6 +311,12 @@ MESSAGE_XP_COOLDOWN = 60         # Segundos entre mensagens que dão XP
 MESSAGE_XP_AMOUNT = 5            # XP por mensagem válida
 VOICE_XP_INTERVAL = 300          # Segundos para ganhar XP em call (5 min)
 VOICE_XP_AMOUNT = 15             # XP por intervalo em call
+
+# Recompensas passivas por tempo contínuo em call
+VOICE_PASSIVE_MINUTES = 60       # Minutos necessários para ganhar recompensa
+VOICE_PASSIVE_XP = 10            # XP ganho após tempo completo
+VOICE_PASSIVE_COINS = 5          # Coins ganhos após tempo completo
+
 MIN_MESSAGE_LENGTH = 10          # Caracteres mínimos para ganhar XP
 
 # ═══════════════════════════════════════════════════════════════
