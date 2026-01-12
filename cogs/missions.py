@@ -602,7 +602,10 @@ class MissionsCog(commands.Cog):
         # Usuário ENTROU em um canal de voz
         if before.channel is None and after.channel is not None:
             # Registra timestamp de entrada para recompensas passivas
-            self.voice_join_times[user_id] = datetime.now(timezone.utc)
+            # APENAS no servidor SharkClub
+            SHARKCLUB_GUILD_ID = 1296246117843079248
+            if member.guild.id == SHARKCLUB_GUILD_ID:
+                self.voice_join_times[user_id] = datetime.now(timezone.utc)
             
             channel_id = after.channel.id if after.channel else 0
             
@@ -670,6 +673,13 @@ class MissionsCog(commands.Cog):
         # Usuário SAIU de um canal de voz
         elif before.channel is not None and after.channel is None:
             # Calcula tempo em call e dá recompensas passivas
+            # APENAS no servidor SharkClub
+            SHARKCLUB_GUILD_ID = 1296246117843079248
+            if member.guild.id != SHARKCLUB_GUILD_ID:
+                # Remove tracking se estava sendo rastreado
+                self.voice_join_times.pop(user_id, None)
+                return
+            
             if user_id in self.voice_join_times:
                 join_time = self.voice_join_times.pop(user_id)
                 now = datetime.now(timezone.utc)
