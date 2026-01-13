@@ -70,6 +70,164 @@ class MissionsView(discord.ui.View):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
+# ═══════════════════════════════════════════════════════════════
+# VIEW PERSISTENTE DO BOTÃO "AJUDOU" PARA THREADS
+# ═══════════════════════════════════════════════════════════════
+
+class ThreadHelpedButtonView(discord.ui.View):
+    """View persistente com botão 'Ajudou' enviada em threads de ajuda"""
+    
+    def __init__(self, thread_owner_id: int):
+        super().__init__(timeout=None)  # Persistente
+        self.thread_owner_id = thread_owner_id
+    
+    @discord.ui.button(
+        label="🤝 Ajudou!",
+        style=discord.ButtonStyle.success,
+        custom_id="thread_helped_button"
+    )
+    async def helped_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Registra que o criador da thread ajudou o usuário que clicou"""
+        await interaction.response.defer(ephemeral=True)
+        
+        clicker_id = interaction.user.id
+        
+        # Extrai o thread_owner_id do custom_id da mensagem (armazenado no embed)
+        # Primeiro tenta pegar do embed da mensagem
+        thread_owner_id = None
+        if interaction.message and interaction.message.embeds:
+            embed = interaction.message.embeds[0]
+            if embed.footer and embed.footer.text:
+                # O formato é: "ID: <user_id>"
+                try:
+                    footer_text = embed.footer.text
+                    if "ID:" in footer_text:
+                        thread_owner_id = int(footer_text.split("ID:")[1].strip())
+                except:
+                    pass
+        
+        if not thread_owner_id:
+            await interaction.followup.send(
+                "❌ Não foi possível identificar o criador da thread.", 
+                ephemeral=True
+            )
+            return
+        
+        # Validações
+        if clicker_id == thread_owner_id:
+            await interaction.followup.send(
+                "❌ Você não pode marcar você mesmo como ajudante!",
+                ephemeral=True
+            )
+            return
+        
+        # Pega o membro que criou a thread (o helper)
+        helper = interaction.guild.get_member(thread_owner_id)
+        if not helper:
+            try:
+                helper = await interaction.guild.fetch_member(thread_owner_id)
+            except:
+                await interaction.followup.send(
+                    "❌ O criador da thread não foi encontrado no servidor.",
+                    ephemeral=True
+                )
+                return
+        
+        if helper.bot:
+            await interaction.followup.send(
+                "❌ Você não pode marcar um bot como ajudante!",
+                ephemeral=True
+            )
+            return
+        
+        # Garante que o helper existe no banco
+        UserQueries.get_or_create_user(thread_owner_id, helper.display_name)
+        
+        # Busca missões semanais do helper
+        weekly_missions = MissionQueries.get_active_missions(thread_owner_id, 'weekly')
+        
+        # Se não tem missões semanais, cria automaticamente (via cog)
+        missions_cog = interaction.client.get_cog('MissionsCog')
+        if not weekly_missions and missions_cog:
+            weekly_missions = await missions_cog.generate_weekly_missions(thread_owner_id)
+        
+        # Registra a ajuda no activity_log (para missão secreta 2)
+        try:
+            unique_helped = ActivityQueries.get_unique_helped_members(thread_owner_id, days=7)
+            if clicker_id not in unique_helped:
+                ActivityQueries.log_help_activity(thread_owner_id, clicker_id)
+        except Exception as e:
+            print(f"⚠️ Erro ao registrar ajuda: {e}")
+        
+        # Procura pela missão mentor_fantasma
+        mentor_mission = next((m for m in weekly_missions if m.get('mission_id') == 'mentor_fantasma'), None)
+        
+        if not mentor_mission:
+            await interaction.followup.send(
+                f"✅ Obrigado! Sua ajuda foi registrada para {helper.mention}!",
+                ephemeral=True
+            )
+            # Ainda verifica missão secreta VIP
+            if UserQueries.is_vip(thread_owner_id) and missions_cog:
+                await missions_cog._check_help_mission(thread_owner_id, clicker_id)
+            return
+        
+        if mentor_mission.get('status') == 'completed':
+            embed = discord.Embed(
+                title="✅ Obrigado!",
+                description=f"Sua ajuda foi registrada!\n{helper.mention} já completou a missão **Mentor Fantasma** esta semana! 🎉",
+                color=config.EMBED_COLOR_SUCCESS
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            # Mesmo com missão semanal completa, ainda verifica missão secreta VIP
+            if UserQueries.is_vip(thread_owner_id) and missions_cog:
+                await missions_cog._check_help_mission(thread_owner_id, clicker_id)
+            return
+        
+        # Avança o progresso da missão
+        new_progress = mentor_mission.get('progress', 0) + 1
+        target = mentor_mission.get('target', 2)
+        
+        if new_progress >= target:
+            # Completa a missão
+            MissionQueries.complete_mission(mentor_mission['id'])
+            xp_reward = config.WEEKLY_MISSIONS.get('mentor_fantasma', {}).get('xp_reward', 100)
+            coins_reward = config.WEEKLY_MISSIONS.get('mentor_fantasma', {}).get('coins_reward', 10)
+            UserQueries.update_xp(thread_owner_id, xp_reward)
+            UserQueries.update_coins(thread_owner_id, coins_reward)
+            
+            embed = discord.Embed(
+                title="🎉 Missão Completa!",
+                description=f"**{interaction.user.display_name}** confirmou que {helper.mention} o(a) ajudou!\n\n"
+                           f"**{helper.display_name}** completou a missão **Mentor Fantasma**! 🎯",
+                color=config.EMBED_COLOR_SUCCESS
+            )
+            embed.add_field(name="Recompensas", value=f"+{xp_reward} XP | +{coins_reward} 🪙")
+            embed.set_footer(text="Clique no botão 'Ajudou!' para agradecer quem te ajuda!")
+            
+            # Envia mensagem pública na thread para celebrar
+            await interaction.channel.send(embed=embed)
+            await interaction.followup.send("✅ Ajuda registrada com sucesso!", ephemeral=True)
+        else:
+            # Atualiza progresso
+            MissionQueries.update_mission_progress(mentor_mission['id'], new_progress)
+            
+            embed = discord.Embed(
+                title="🤝 Ajuda Registrada!",
+                description=f"**{interaction.user.display_name}** confirmou que {helper.mention} o(a) ajudou!\n\n"
+                           f"**Progresso da missão Mentor Fantasma:** {new_progress}/{target}",
+                color=config.EMBED_COLOR_PRIMARY
+            )
+            embed.set_footer(text="Clique no botão 'Ajudou!' para agradecer quem te ajuda!")
+            
+            await interaction.channel.send(embed=embed)
+            await interaction.followup.send("✅ Ajuda registrada com sucesso!", ephemeral=True)
+        
+        # Verifica missão secreta 2 para VIPs
+        if UserQueries.is_vip(thread_owner_id) and missions_cog:
+            await missions_cog._check_help_mission(thread_owner_id, clicker_id)
+
+
 class MissionsCog(commands.Cog):
     """Sistema de missões"""
     
@@ -81,11 +239,63 @@ class MissionsCog(commands.Cog):
     
     @commands.Cog.listener()
     async def on_ready(self):
-        """Envia painel de missões no canal apropriado"""
+        """Envia painel de missões no canal apropriado e registra Views persistentes"""
         await asyncio.sleep(7)  # Aguarda setup
+        
+        # Registra a View persistente do botão "Ajudou" para threads
+        # Usa ID 0 como placeholder - o ID real é extraído do embed footer
+        self.bot.add_view(ThreadHelpedButtonView(thread_owner_id=0))
+        print("✅ View persistente do botão 'Ajudou!' registrada")
         
         for guild in self.bot.guilds:
             await self._send_missions_panel(guild)
+    
+    @commands.Cog.listener()
+    async def on_thread_create(self, thread: discord.Thread):
+        """Listener para enviar botão 'Ajudou!' quando uma thread é criada no canal de ajuda"""
+        # Verifica se a thread foi criada no canal de threads de ajuda
+        threads_channel_id = config.CHANNEL_IDS.get("threads_ajuda")
+        
+        if not threads_channel_id:
+            return
+        
+        # Verifica se a thread pertence ao canal monitorado
+        if thread.parent_id != threads_channel_id:
+            return
+        
+        # Pega o criador da thread
+        thread_owner_id = thread.owner_id
+        if not thread_owner_id:
+            return
+        
+        # Ignora threads criadas por bots
+        owner = thread.guild.get_member(thread_owner_id)
+        if owner and owner.bot:
+            return
+        
+        # Aguarda um pouco para garantir que a thread está pronta
+        await asyncio.sleep(1)
+        
+        # Cria embed com instruções
+        embed = discord.Embed(
+            title="🤝 Esta informação te ajudou?",
+            description="Se o conteúdo desta thread foi útil para você, clique no botão abaixo!\n\n"
+                       "O criador da thread receberá progresso na missão **Mentor Fantasma**.",
+            color=config.EMBED_COLOR_PRIMARY
+        )
+        embed.set_footer(text=f"ID: {thread_owner_id}")  # Armazena o ID do criador no footer
+        
+        # Cria view com botão
+        view = ThreadHelpedButtonView(thread_owner_id=thread_owner_id)
+        
+        try:
+            await thread.send(embed=embed, view=view)
+            print(f"✅ Botão 'Ajudou!' enviado na thread: {thread.name}")
+        except discord.Forbidden:
+            print(f"❌ Sem permissão para enviar na thread: {thread.name}")
+        except Exception as e:
+            print(f"❌ Erro ao enviar botão na thread: {e}")
+
     
     async def _send_missions_panel(self, guild: discord.Guild, force_new: bool = False):
         """Envia ou atualiza painel de missões no canal de missões"""
