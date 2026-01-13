@@ -367,6 +367,46 @@ class MissionsCog(commands.Cog):
         else:
             await interaction.followup.send(f"❌ Falha: {msg}", ephemeral=True)
 
+    @app_commands.command(name="admin-setup-ajudou", description="[ADMIN] Envia painel 'Ajudou' no canal atual")
+    @app_commands.describe(membro="O membro que criou o conteúdo/post que ajuda outros")
+    async def admin_setup_ajudou(self, interaction: discord.Interaction, membro: discord.Member):
+        """[ADMIN] Envia o painel com botão 'Ajudou' no canal atual, atribuindo ao membro especificado"""
+        # Verifica admin no DB
+        user_data = UserQueries.get_or_create_user(interaction.user.id, interaction.user.display_name)
+        if not user_data.get('is_admin', False):
+            await interaction.response.send_message("❌ Apenas administradores do bot podem usar este comando.", ephemeral=True)
+            return
+        
+        # Validações
+        if membro.bot:
+            await interaction.response.send_message("❌ Você não pode selecionar um bot!", ephemeral=True)
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+        
+        helper_id = membro.id
+        
+        # Cria embed com instruções
+        embed = discord.Embed(
+            title="🤝 Esta informação te ajudou?",
+            description=f"Se o conteúdo deste post foi útil para você, clique no botão abaixo!\n\n"
+                       f"**Autor:** {membro.mention}\n"
+                       f"O autor receberá progresso na missão **Mentor Fantasma**.",
+            color=config.EMBED_COLOR_PRIMARY
+        )
+        embed.set_footer(text=f"ID: {helper_id}")  # Armazena o ID do helper no footer
+        
+        # Cria view com botão
+        view = ThreadHelpedButtonView(thread_owner_id=helper_id)
+        
+        try:
+            await interaction.channel.send(embed=embed, view=view)
+            await interaction.followup.send(f"✅ Painel 'Ajudou' enviado com sucesso! Atribuído a {membro.mention}", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("❌ Sem permissão para enviar no canal.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erro: {e}", ephemeral=True)
+
     def cog_unload(self):
         self.check_weekly_reset.cancel()
     
