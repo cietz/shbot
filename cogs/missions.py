@@ -198,30 +198,23 @@ class ThreadHelpedButtonView(discord.ui.View):
             
             embed = discord.Embed(
                 title="🎉 Missão Completa!",
-                description=f"**{interaction.user.display_name}** confirmou que {helper.mention} o(a) ajudou!\n\n"
-                           f"**{helper.display_name}** completou a missão **Mentor Fantasma**! 🎯",
+                description=f"Você confirmou que {helper.mention} te ajudou!\n\n"
+                           f"**{helper.display_name}** completou a missão **Mentor Fantasma**! 🎯\n"
+                           f"**Recompensas:** +{xp_reward} XP | +{coins_reward} 🪙",
                 color=config.EMBED_COLOR_SUCCESS
             )
-            embed.add_field(name="Recompensas", value=f"+{xp_reward} XP | +{coins_reward} 🪙")
-            embed.set_footer(text="Clique no botão 'Ajudou!' para agradecer quem te ajuda!")
-            
-            # Envia mensagem pública na thread para celebrar
-            await interaction.channel.send(embed=embed)
-            await interaction.followup.send("✅ Ajuda registrada com sucesso!", ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
         else:
             # Atualiza progresso
             MissionQueries.update_mission_progress(mentor_mission['id'], new_progress)
             
             embed = discord.Embed(
-                title="🤝 Ajuda Registrada!",
-                description=f"**{interaction.user.display_name}** confirmou que {helper.mention} o(a) ajudou!\n\n"
+                title="✅ Ajuda Registrada!",
+                description=f"Você confirmou que {helper.mention} te ajudou!\n\n"
                            f"**Progresso da missão Mentor Fantasma:** {new_progress}/{target}",
-                color=config.EMBED_COLOR_PRIMARY
+                color=config.EMBED_COLOR_SUCCESS
             )
-            embed.set_footer(text="Clique no botão 'Ajudou!' para agradecer quem te ajuda!")
-            
-            await interaction.channel.send(embed=embed)
-            await interaction.followup.send("✅ Ajuda registrada com sucesso!", ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
         
         # Verifica missão secreta 2 para VIPs
         if UserQueries.is_vip(thread_owner_id) and missions_cog:
