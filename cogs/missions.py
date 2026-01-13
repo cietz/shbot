@@ -250,53 +250,7 @@ class MissionsCog(commands.Cog):
         for guild in self.bot.guilds:
             await self._send_missions_panel(guild)
     
-    @commands.Cog.listener()
-    async def on_thread_create(self, thread: discord.Thread):
-        """Listener para enviar botão 'Ajudou!' quando uma thread é criada no canal de ajuda"""
-        # Verifica se a thread foi criada no canal de threads de ajuda
-        threads_channel_id = config.CHANNEL_IDS.get("threads_ajuda")
-        
-        if not threads_channel_id:
-            return
-        
-        # Verifica se a thread pertence ao canal monitorado
-        if thread.parent_id != threads_channel_id:
-            return
-        
-        # Pega o criador da thread
-        thread_owner_id = thread.owner_id
-        if not thread_owner_id:
-            return
-        
-        # Ignora threads criadas por bots
-        owner = thread.guild.get_member(thread_owner_id)
-        if owner and owner.bot:
-            return
-        
-        # Aguarda um pouco para garantir que a thread está pronta
-        await asyncio.sleep(1)
-        
-        # Cria embed com instruções
-        embed = discord.Embed(
-            title="🤝 Esta informação te ajudou?",
-            description="Se o conteúdo desta thread foi útil para você, clique no botão abaixo!\n\n"
-                       "O criador da thread receberá progresso na missão **Mentor Fantasma**.",
-            color=config.EMBED_COLOR_PRIMARY
-        )
-        embed.set_footer(text=f"ID: {thread_owner_id}")  # Armazena o ID do criador no footer
-        
-        # Cria view com botão
-        view = ThreadHelpedButtonView(thread_owner_id=thread_owner_id)
-        
-        try:
-            await thread.send(embed=embed, view=view)
-            print(f"✅ Botão 'Ajudou!' enviado na thread: {thread.name}")
-        except discord.Forbidden:
-            print(f"❌ Sem permissão para enviar na thread: {thread.name}")
-        except Exception as e:
-            print(f"❌ Erro ao enviar botão na thread: {e}")
 
-    
     async def _send_missions_panel(self, guild: discord.Guild, force_new: bool = False):
         """Envia ou atualiza painel de missões no canal de missões"""
         # Busca o canal pelo ID fixo

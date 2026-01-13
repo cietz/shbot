@@ -109,7 +109,6 @@ CHANNEL_IDS = {
     "level_ups": 1454549598164226280,
     "avaliacoes": 1459589139304419421,
     "avaliacoes_logs": 1457725920403128484,
-    "threads_ajuda": 1459591232081625278,  # Canal de threads onde o botão "Ajudou" é enviado
 }
 
 # Cores dos cargos (em hexadecimal)
